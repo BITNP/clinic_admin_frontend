@@ -20,8 +20,8 @@ jobs:
 
       - name: Save Docker Image
         run: |
-          docker build . -t ghcr.io/dustin-jiang/clinic_admin_ng/clinic_admin_ng:latest
+          docker build . -t ghcr.io/bitnp/clinic_admin_ng/clinic_admin_ng:latest
 
       - name: Push Docker Image
         run: |
-          docker push ghcr.io/dustin-jiang/clinic_admin_ng/clinic_admin_ng:latest
+          docker push ghcr.io/bitnp/clinic_admin_ng/clinic_admin_ng:latest
