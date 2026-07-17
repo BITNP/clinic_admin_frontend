@@ -66,29 +66,29 @@ const isCreate = computed(() => props.announcementId === "0");
 
 const ctx = computed<API.IAnnouncement>(() => {
   const date = new Date();
-  return store.announcementList.find((item) => item.url.split("/").slice(-2)[0] === props.announcementId)
+  return store.announcementList.find((item) => item.id === parseInt(props.announcementId))
     ?? {
+      id: 0,
       title: "",
       brief: "",
       content: "",
-      tag: "AN",
+      tag: "normal",
       priority: 0,
-      url: "",
       createdTime: "",
       lastEditedTime: "",
       expireDate: `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}` as API.DateString
     };
 })
 
-const ctxIdx = computed(() => store.announcementList.findIndex((item) => (item.url.split("/").slice(-2)[0] === props.announcementId)))
+const ctxIdx = computed(() => store.announcementList.findIndex((item) => item.id === parseInt(props.announcementId)))
 
 const txt = ref<string>('');
 const unsaved = ref<boolean>(false);
 
 const tags: [string, API.AnnouncementTags][] = [
-  ["普通公告", "AN"],
-  ["置顶公告", "TA"],
-  ["免责声明", "TOS"]
+  ["普通公告", "normal"],
+  ["置顶公告", "pinned"],
+  ["免责声明", "tos"]
 ];
 
 const selections = tags.map(([label, value]) => { return { label, value } });
@@ -108,7 +108,7 @@ const handleSave = async () => {
   }
 
   try {
-    await(commit(data));
+    await commit(data);
     message.success("保存成功");
     store.announcementList[ctxIdx.value] = data;
     router.back()
@@ -121,20 +121,18 @@ const handleSave = async () => {
 
 const commit = async (data: API.IAnnouncement) => {
   if (isCreate.value) {
-    const payload: Partial<typeof data> = data;
-    delete payload.url;
-    delete payload.createdTime;
-    delete payload.lastEditedTime;
-    await Api.post<Partial<API.IAnnouncement>>('/api/announcement/', data);
+    const payload: Partial<API.IAnnouncement> = { ...data }
+    delete (payload as any).id
+    delete payload.createdTime
+    delete payload.lastEditedTime
+    await Api.post<API.IAnnouncement>('/api/admin/announcements', payload)
   }
   else {
-    const url = data.url.replace(/.*\/api/g, '/api');
-
-    const payload: Partial<typeof data> = data;
-    delete payload.url;
-    delete payload.createdTime;
-    delete payload.lastEditedTime;
-    await Api.put<API.IAnnouncement>(url, payload);
+    const payload: Partial<API.IAnnouncement> = { ...data }
+    delete (payload as any).id
+    delete payload.createdTime
+    delete payload.lastEditedTime
+    await Api.put<API.IAnnouncement>(`/api/admin/announcements/${props.announcementId}`, payload)
   }
 }
 

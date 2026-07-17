@@ -1,40 +1,42 @@
 <template>
   <n-button size="small" secondary :type="color(props.status)">
-    {{
-      (typeof props.status === "number") ? RECORD_STATUS_DESC[props.status] : props.text!
-    }}
+    <template #icon>
+      <slot />
+    </template>
+    {{ RECORD_STATUS_DESC[props.status] ?? props.text ?? props.status }}
   </n-button>
 </template>
 
 <script setup lang="ts">
-import { RECORD_STATUS_DESC, RecordStatus } from '@/utils/constants';
+import { RECORD_STATUS_DESC } from '@/utils/constants';
+
 const props = defineProps<{
-  status: number | string,
-  text?: string
+  status: string,
+  text?: string,
 }>()
 
-const color = (status: number | string) => {
+const color = (status: string) => {
   if (
-    status === RecordStatus.APPOINTMENT_PENDING ||
-    status === RecordStatus.PROCESS_PENDING ||
-    status === RecordStatus.UNRESOLVE
+    status === "pending" ||
+    status === "in_progress"
   ) return "warning"
+
   if (
-    status === RecordStatus.RESOLVING
-  ) return "default"
+    status === "arrived"
+  ) return "primary"
+
   if (
-    status === RecordStatus.ANOTHER_DAY ||
-    status === RecordStatus.GO_TO_OEM ||
-    status === RecordStatus.WHERE_ARE_YOU
-  ) return "tertiary"
-  if (
-    status === RecordStatus.APPOINTMENT_REJECTED
-  ) return "error"
-  if (
-    status === RecordStatus.RESOLVED
+    status === "completed"
   ) return "success"
+
   if (
-    status === RecordStatus.APPOINTMENT_CONFIRMED
+    status === "rejected" ||
+    status === "no_show"
+  ) return "error"
+
+  if (
+    status === "confirmed" ||
+    status === "referred"
   ) return "info"
 
   else return status

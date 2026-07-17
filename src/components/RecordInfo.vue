@@ -16,8 +16,7 @@
     <n-grid-item>
       <n-thing>
         <template #header>机主</template>
-        {{ `${record?.realname ?? "无名氏"} - ${owner?.username ?? ""}` }}
-        <n-skeleton text width="100px" v-if="!owner?.username" />
+        {{ `${record?.realname ?? "无名氏"} - ${record?.user ?? ""}` }}
       </n-thing>
     </n-grid-item>
     <n-grid-item>

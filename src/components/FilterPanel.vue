@@ -30,7 +30,7 @@ import { onMounted, ref, watchEffect } from "vue"
 
 const emit = defineEmits(["close"])
 
-const campus = ref<API.Campus["name"]>("all")
+const campus = ref<string>("all")
 const campusList = ref<{
   label: string,
   value: string
@@ -47,8 +47,6 @@ onMounted(() => {
   campus.value = store.filters["campus"] ? store.filters["campus"][0].value : "all"
   date.value = store.filters["date"] ? store.filters["date"].map((filter) => filter.value) as FilterDates[] : ["today", "past", "future"]
   dateAll.value = date.value.length === 3
-
-  console.debug("filterPanel: ", campus.value)
 
   store.campusList.forEach((campus) => campusList.value.push({
     label: campus.name,

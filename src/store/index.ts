@@ -4,6 +4,13 @@ import Api from "@/utils/Api";
 import { load as loadRecords } from './record'
 import { probDescs, repairMethods } from '@/utils/constants';
 
+interface ListResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 const store = reactive({
   isDrawerOpen: false,
   drawerScroll: 0,
@@ -16,8 +23,8 @@ const store = reactive({
       filter: (record: API.Record) => boolean
     }[]
   },
-  campusList: [] as API.Campus[],
-  dateList: [] as API.DateStatus[],
+  campusList: [] as API.Room[],
+  dateList: [] as API.ServiceDate[],
   repairMethods: [] as API.RecordDesc[],
   probDescs: [] as API.RecordDesc[],
   history: new Map<API.Record['id'], API.Record[]>(),
@@ -27,18 +34,17 @@ const store = reactive({
 const load = async () => {
   await loadRecords()
 
-  const campus = (await Api.get<API.Campus[]>('/api/campus/')).data
-  store.campusList = campus
+  const campusRes = await Api.get<ListResponse<API.Room>>('/api/admin/rooms')
+  store.campusList = campusRes.data.items
 
-  const dates = (await Api.get<API.DateStatus[]>('/api/date/')).data
-  store.dateList = dates
+  const datesRes = await Api.get<ListResponse<API.ServiceDate>>('/api/admin/service-dates')
+  store.dateList = datesRes.data.items
 
-  const annoucements = (await Api.get<API.IAnnouncement[]>('/api/announcement/')).data
-  store.announcementList = annoucements
+  const announcementRes = await Api.get<ListResponse<API.IAnnouncement>>('/api/admin/announcements')
+  store.announcementList = announcementRes.data.items
 
   console.debug("storeLoad: ", repairMethods)
   store.repairMethods = repairMethods
-
   store.probDescs = probDescs
 }
 

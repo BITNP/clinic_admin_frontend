@@ -1,7 +1,7 @@
 <template>
   <PageWrapper title="公告列表">
     <n-grid cols="1 600:2" :x-gap="8" :y-gap="8">
-      <n-grid-item v-for="announce in store.announcementList" :key="announce.url">
+      <n-grid-item v-for="announce in store.announcementList" :key="announce.id">
         <n-card @click="() => edit(announce)">
           <n-thing :title="announce.title">
             {{ announce.brief }}
@@ -38,7 +38,7 @@ onMounted(async () => {
 })
 
 const edit = (target: API.IAnnouncement) => {
-  router.push(`/announcement/edit/${target.url.split("/").slice(-2)[0]}`);
+  router.push(`/announcement/edit/${target.id}`);
 }
 
 const create = () => {

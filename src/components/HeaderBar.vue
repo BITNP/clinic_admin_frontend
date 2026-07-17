@@ -49,7 +49,7 @@
               <n-popconfirm>
                 <template #trigger>
                   <n-button>
-                    {{ Auth.user.value?.username || "Who Are You?" }}
+                    {{ Auth.user.value?.account_id || "Who Are You?" }}
                   </n-button>
                 </template>
                 真的要退出登录吗?
@@ -155,7 +155,7 @@ const menu = [
     title: "退出登录",
     key: "logout",
     icon: renderIcon(LogOutFilled),
-    onClick: () => { message.error("还没做好qaq") }
+    onClick: () => { Auth.logout(); router.push("/login") }
   }
 ]
 

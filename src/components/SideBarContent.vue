@@ -1,7 +1,7 @@
 <template>
   <div ref="listDOM" style="margin-top: 64px; overflow: auto; height: calc(100vh - 64px)" @scroll="handleScroll">
     <n-list hoverable clickable v-if="recordCount > 0">
-      <div v-if="Auth.user.value?.is_staff" style="padding: 12px 20px">
+      <div v-if="Auth.user.value?.role === 'admin'" style="padding: 12px 20px">
         <div role="none" style="display: flex; gap: 8px 12px; transition-duration: 0.267s;">
           <n-button type="primary"
             :style="(filterCount === 0 ? 'flex-shrink: 1; width: 100%;transition-duration: 0.267s;' : 'transition-duration: 0.267s;')"
@@ -108,10 +108,8 @@ const createRecord = () => {
 }
 
 const showRecord = (record: API.Record) => {
-  const url = record.url.replace(/.*\/api/g, "").replace(/\/$/g, "")
-  router.push(url)
+  router.push(`/records/${record.id}`)
 
-  // 在窄屏幕上收起Drawer
   if (isShrink.value) store.isDrawerOpen = false
 }
 

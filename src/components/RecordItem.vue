@@ -24,7 +24,6 @@
 import type API from '@/store/api';
 import type { PropType } from 'vue';
 import StatusBadge from "@/components/StatusBadge.vue"
-import { RecordStatus } from '@/utils/constants';
 import store from '@/store';
 
 import AccessTimeFilledFilled from "@vicons/material/AccessTimeFilledFilled"
@@ -43,38 +42,32 @@ const props = defineProps({
 const StatusAvatar = () => {
   const status = props.data?.status
   if (
-    status === RecordStatus.UNRESOLVE || 
-    status === RecordStatus.APPOINTMENT_PENDING ||
-    status === RecordStatus.PROCESS_PENDING
+    status === "pending" ||
+    status === "confirmed"
   ) return <AccessTimeOutline />
 
   if (
-    status === RecordStatus.APPOINTMENT_CONFIRMED
-  ) return <AccessTimeFilledFilled />
+    status === "arrived" ||
+    status === "in_progress"
+  ) return <HandymanFilled />
 
   if (
-    status === RecordStatus.APPOINTMENT_REJECTED
+    status === "rejected"
   ) return <CancelFilled />
 
   if (
-    status === RecordStatus.GO_TO_OEM
+    status === "referred"
   ) return <FactoryFilled />
 
   if (
-    status === RecordStatus.RESOLVED
+    status === "completed"
   ) return <DoneFilled />
 
   if (
-    status === RecordStatus.ANOTHER_DAY
-  ) return <CalendarMonthFilled />
-
-  if (
-    status === RecordStatus.WHERE_ARE_YOU
+    status === "no_show"
   ) return <PersonOffFilled />
 
-  if (
-    status === RecordStatus.RESOLVING
-  ) return <HandymanFilled />
+  return <AccessTimeOutline />
 }
 
 const filterCampus = () => {

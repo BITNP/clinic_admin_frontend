@@ -2,11 +2,11 @@
   <PageWrapper title="新建服务时间">
     <n-form :model="formValue" :rules="formRule" ref="formRef">
       <n-grid cols="18 800:22" :x-gap="22">
-        <n-form-item-gi :span="8" label="服务描述" path="description">
-          <n-input v-model:value="formValue.description" placeholder="描述" />
+        <n-form-item-gi :span="8" label="服务描述" path="title">
+          <n-input v-model:value="formValue.title" placeholder="描述" />
         </n-form-item-gi>
-        <n-form-item-gi :span="8" label="选择校区" path="campus">
-          <n-select v-model:value="formValue.campus" :options="campuses" placeholder="校区" />
+        <n-form-item-gi :span="8" label="选择校区" path="room_id">
+          <n-select v-model:value="formValue.room_id" :options="campuses" placeholder="校区" />
         </n-form-item-gi>
         <n-form-item-gi :span="6" label="设置容量" path="capacity">
           <n-input-number v-model:value="formValue.capacity" placeholder="容量" />
@@ -44,7 +44,6 @@ import { ref, computed, onMounted } from 'vue';
 import store, { load } from "@/store";
 import type { FormInst } from "naive-ui";
 import { useRouter } from 'vue-router';
-import type API from "@/store/api";
 import Api from "@/utils/Api";
 import { useMessage } from 'naive-ui';
 import Auth from "@/utils/Auth";
@@ -56,78 +55,79 @@ const loading = ref<boolean>(false)
 
 const formRef = ref<FormInst | null>();
 
-const toTime = (time: number) => {
-  const date = new Date(time);
-  return `${date.getHours()}:${date.getMinutes().toString().padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}` as API.TimeString;
+const toRFC3339 = (dateMs: number, timeMs?: number) => {
+  const d = new Date(dateMs)
+  if (timeMs !== undefined) {
+    const t = new Date(timeMs)
+    d.setHours(t.getHours(), t.getMinutes(), t.getSeconds(), 0)
+  }
+  return d.toISOString()
 }
 
-const toDate = (time: number) => {
-  const date = new Date(time);
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}` as API.DateString;
-};
+const toDateStr = (dateMs: number) => {
+  const d = new Date(dateMs)
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+}
 
 const datesUnavailable = computed(() => store.dateList.reduce((acc, date) => {
-  const key = date.campus;
+  const key = date.room_id
   if (!acc.has(key)) {
-    acc.set(key, []);
+    acc.set(key, [])
   }
-  acc.get(key)?.push(date.date);
-  return acc;
-}, new Map<string, API.DateString[]>()))
+  acc.get(key)?.push(date.date.slice(0, 10))
+  return acc
+}, new Map<number, string[]>()))
 
 const isDateDisabled = (current: number) => {
-  const key = toDate(current);
-  return datesUnavailable.value.has(formValue.value.campus!) &&
-    datesUnavailable.value.get(formValue.value.campus!)?.includes(key);
+  const key = toDateStr(current)
+  return datesUnavailable.value.has(formValue.value.room_id!) &&
+    datesUnavailable.value.get(formValue.value.room_id!)?.includes(key)
 }
 
 const campuses = computed(() => store.campusList.map((item) => {
   return {
     label: item.name,
-    value: item.name
+    value: item.id
   }
-}));
+}))
 
 const defaultCampus = computed(() => {
-  return Auth.user?.value?.campus;
+  // no longer have user.campus; default to first campus or null
+  return store.campusList[0]?.id ?? null
 })
 
 const formValue = ref({
-  description: "正常服务",
-  campus: defaultCampus.value,
+  title: "正常服务",
+  room_id: defaultCampus.value as number | null,
   capacity: 15,
   startTime: (new Date()).setHours(18, 30, 0, 0),
   endTime: (new Date()).setHours(21, 0, 0, 0),
   dateMulti: false,
   date: {
-    date: undefined,
+    date: undefined as number | undefined,
     dateList: undefined as [number, number] | undefined,
   }
 })
 
 const formRule = {
-  description: { required: true, message: "请输入服务描述", trigger: ["blur"] },
-  campus:
-    { required: true, message: "请选择校区", trigger: ["change"] },
-  capacity:
-  {
+  title: { required: true, message: "请输入服务描述", trigger: ["blur"] },
+  room_id: { required: true, message: "请选择校区", trigger: ["change"] },
+  capacity: {
     required: true, message: "请输入容量", trigger: ["blur"], validator: (rule: any, value: number) => {
       if (value < 1) {
-        return "哎呀不对不对不对";
+        return "哎呀不对不对不对"
       }
-      return true;
+      return true
     }
   },
-  startTime:
-  {
+  startTime: {
     required: true, message: "请选择开始时间", trigger: ["change"], validator: (rule: any, value: number) => {
-      return value !== 0;
+      return value !== 0
     }
   },
-  endTime:
-  {
+  endTime: {
     required: true, message: "请选择结束时间", trigger: ["change"], validator: (rule: any, value: number) => {
-      return value !== 0;
+      return value !== 0
     }
   }
 }
@@ -137,56 +137,59 @@ onMounted(async () => {
     await load();
   }
   await Auth.auth();
-  console.debug("campuses", campuses.value);
-  console.debug("dates", store.dateList);
-  console.debug("datesUnavailable", datesUnavailable.value);
 })
 
 const handleSubmit = () => {
   formRef.value?.validate().then(async (valid) => {
     if (valid) {
-      let result = [] as API.IDateStatus[];
+      const results: {
+        room_id: number
+        capacity: number
+        date: string
+        startTime: string
+        endTime: string
+        title: string
+      }[] = []
 
-      const status = {
-        campus: formValue.value.campus!,
+      const base = {
+        room_id: formValue.value.room_id!,
         capacity: formValue.value.capacity,
-        startTime: toTime(formValue.value.startTime),
-        endTime: toTime(formValue.value.endTime),
-        title: formValue.value.description,
+        title: formValue.value.title,
       }
 
       if (formValue.value.dateMulti) {
-        if (!formValue.value.date.dateList) return message.error("日期不对喔");
-        const [start, end] = formValue.value.date.dateList;
+        if (!formValue.value.date.dateList) return message.error("日期不对喔")
+        const [start, end] = formValue.value.date.dateList
         for (let i = start; i <= end; i += 24 * 60 * 60 * 1000) {
-          result.push({
-            ...status,
-            date: toDate(i),
+          const dateStr = toRFC3339(i)
+          results.push({
+            ...base,
+            date: dateStr,
+            startTime: toRFC3339(i, formValue.value.startTime),
+            endTime: toRFC3339(i, formValue.value.endTime),
           })
         }
-      }
-      else {
-        if (!formValue.value.date.date) return message.error("日期不对喔");
-        result.push({
-          ...status,
-          date: toDate(formValue.value.date.date),
+      } else {
+        if (!formValue.value.date.date) return message.error("日期不对喔")
+        const dateStr = toRFC3339(formValue.value.date.date)
+        results.push({
+          ...base,
+          date: dateStr,
+          startTime: toRFC3339(formValue.value.date.date, formValue.value.startTime),
+          endTime: toRFC3339(formValue.value.date.date, formValue.value.endTime),
         })
       }
-      console.debug("result", result);
 
       try {
-        loading.value = true;
-        await Promise.all(result.map((s) => {
-          return Api.post<API.DateStatus>('/api/date/', s);
-        }));
-        message.success("提交成功啦");
-        // router.back();
-      }
-      catch (e) {
-        message.error("提交失败");
-      }
-      finally {
-        loading.value = false;
+        loading.value = true
+        await Promise.all(results.map((s) => {
+          return Api.post('/api/admin/service-dates', s)
+        }))
+        message.success("提交成功啦")
+      } catch (e) {
+        message.error("提交失败")
+      } finally {
+        loading.value = false
       }
     }
   })

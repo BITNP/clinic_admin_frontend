@@ -2,8 +2,8 @@ import axios from "axios";
 
 const Api = axios.create({
   withCredentials: true,
-  xsrfCookieName: 'csrftoken',
-  xsrfHeaderName: 'X-CSRFToken'
+  xsrfCookieName: 'csrf_token',
+  xsrfHeaderName: 'X-CSRF-Token'
 });
 
 export default Api;

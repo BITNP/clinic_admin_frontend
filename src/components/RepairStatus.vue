@@ -1,83 +1,90 @@
 <template>
   <n-space vertical>
-    <!-- 预约未确认 -->
-    <n-space vertical v-if="record?.status === RecordStatus.APPOINTMENT_PENDING">
-      <n-radio-group v-model:value="confirmation">
+    <!-- pending: waiting for confirmation -->
+    <n-space vertical v-if="record?.status === 'pending'">
+      <n-radio-group v-model:value="action">
         <n-space>
-          <n-radio key="resolve" :value="RecordStatus.APPOINTMENT_CONFIRMED">确认受理</n-radio>
-          <n-radio key="reject" :value="RecordStatus.APPOINTMENT_REJECTED">驳回预约</n-radio>
-          <n-radio key="oem" :value="RecordStatus.GO_TO_OEM">建议返厂</n-radio>
+          <n-radio key="confirm" value="confirm">确认受理</n-radio>
+          <n-radio key="reject" value="reject">驳回预约</n-radio>
+          <n-radio key="refer" value="refer">建议返厂</n-radio>
         </n-space>
       </n-radio-group>
 
-      <n-collapse-transition :show="isConfirmed">
+      <n-collapse-transition :show="action === 'confirm'">
         <div style="margin: 0.5em 0;">调整场地</div>
         <n-select :options="campusList" v-model:value="campusSelect" />
       </n-collapse-transition>
 
-      <n-collapse-transition :show="!isConfirmed">
-        <n-input type="textarea" placeholder="拒绝的理由是?" v-model:value="rejectReason" />
+      <n-collapse-transition :show="action === 'reject'">
+        <n-input type="textarea" placeholder="拒绝的理由是?" v-model:value="reasonInput" />
       </n-collapse-transition>
 
-      <n-button :type="isConfirmed ? 'success' : 'error'" style="width: 150px"
-        @click="handleAppointmentSubmit(isConfirmed, record!)">
+      <n-collapse-transition :show="action === 'refer'">
+        <n-input type="textarea" placeholder="返厂建议" v-model:value="reasonInput" />
+      </n-collapse-transition>
+
+      <n-button :type="action === 'reject' ? 'error' : 'success'" style="width: 150px"
+        @click="handleSubmit">
         提交
       </n-button>
     </n-space>
 
-    <!-- 预约确认, 未到诊所 -->
-    <n-space v-if="
-      record?.status === RecordStatus.APPOINTMENT_CONFIRMED
-    ">
-      <n-button type="primary" style="width: 150px" :disabled="loading !== null" :loading="loading === 'arrive'"
-        @click="handleAppointmentArrive(record!)">
+    <!-- confirmed: waiting for arrival -->
+    <n-space v-if="record?.status === 'confirmed'">
+      <n-button type="primary" style="width: 150px" :disabled="loading !== null"
+        @click="handleArrive">
         <template #icon>
           <DoneFilled />
         </template>
         已到诊所
       </n-button>
-      <n-button style="width: 150px" :disabled=" loading !== null " :loading="loading === 'whereRU'"
-        @click="handleAppointmentMissing(record!)">
+      <n-button style="width: 150px" :disabled="loading !== null"
+        @click="handleNoShow">
         <template #icon>
           <PersonOffFilled />
         </template>
         未到诊所
       </n-button>
-      <ChangeCampus :record="record" :loading="loading" :campusList="campusList"
-        :handleCommit="handleAppointmentChangeCampus" />
     </n-space>
 
-    <!-- 正在处理 -->
-    <n-space vertical v-if="
-      record?.status === RecordStatus.RESOLVING
-    ">
+    <!-- arrived: ready to start work -->
+    <n-space v-if="record?.status === 'arrived'">
+      <n-button type="primary" style="width: 150px" :disabled="loading !== null"
+        @click="handleInProgress">
+        <template #icon>
+          <DoneFilled />
+        </template>
+        开始处理
+      </n-button>
+    </n-space>
+
+    <!-- in_progress: working on it -->
+    <n-space vertical v-if="record?.status === 'in_progress'">
       <RepairComment v-model:value="probDescs" label="问题描述" :options="store.probDescs" />
       <RepairComment v-model:value="repairComment" label="处理方式" :options="store.repairMethods" />
       <n-space>
         <n-button type="primary" style="width: 150px" :disabled="loading !== null || !repairComment.validate"
-          :loading="loading === 'resolve'" @click="() => handleAppointmentComplete(record!)">
+          @click="handleComplete">
           <template #icon>
             <DoneFilled />
           </template>
           已解决
         </n-button>
-        
-        <n-button style="width: 150px" :disabled="loading !== null" :loading="loading === 'goToOEM'"
-          @click="() => handleAppointmentGoToOEM(record!)">
+
+        <n-button style="width: 150px" :disabled="loading !== null"
+          @click="handleReferred">
           <template #icon>
             <FactoryFilled />
           </template>
           建议返厂
         </n-button>
-        
-        <ChangeCampus :record="record" :loading="loading" :campusList="campusList"
-          :handleCommit="handleAppointmentChangeCampus" />
       </n-space>
     </n-space>
 
+    <!-- revert button -->
     <n-space>
-      <n-collapse-transition :show="store.history.get(record?.id!)?.length ?? 0 !== 0">
-        <n-button style="width: 150px" @click="() => revertRecord(record?.id!)">
+      <n-collapse-transition :show="(store.history.get(record?.id!)?.length ?? 0) !== 0">
+        <n-button style="width: 150px" @click="handleRevert">
           <template #icon>
             <HistoryFilled />
           </template>
@@ -91,15 +98,13 @@
 <script setup lang="tsx">
 import store from '@/store';
 import type API from '@/store/api';
-import { update } from '@/store/record';
-import Auth from '@/utils/Auth';
-import { RecordStatus } from '@/utils/constants';
+import { revertRecord as revertStoreRecord, updateStatus, markArrived, markInProgress, markCompleted, markRejected } from '@/store/record';
 import DoneFilled from "@vicons/material/DoneFilled";
 import PersonOffFilled from "@vicons/material/PersonOffFilled";
 import HistoryFilled from "@vicons/material/HistoryFilled";
 import FactoryFilled from "@vicons/material/FactoryFilled";
 import { useMessage } from 'naive-ui';
-import { computed, onUpdated, ref, toRaw } from 'vue';
+import { computed, ref, toRaw } from 'vue';
 
 const props = defineProps<{
   record: API.Record | null,
@@ -108,10 +113,9 @@ const props = defineProps<{
 
 const message = useMessage()
 
-const confirmation = ref<RecordStatus>(RecordStatus.APPOINTMENT_CONFIRMED)
-const isConfirmed = computed(() => confirmation.value === RecordStatus.APPOINTMENT_CONFIRMED)
-const rejectReason = ref("")
-const loading = ref<null | "arrive" | "whereRU" | "changeCampus" | "resolve" | "goToOEM">(null)
+const action = ref<"confirm" | "reject" | "refer">("confirm")
+const reasonInput = ref("")
+const loading = ref(false)
 const repairComment = ref({
   validate: false,
   value: "",
@@ -125,143 +129,137 @@ const probDescs = ref({
 
 const campusList = computed(() => store.campusList.map((campus) => ({
   label: campus.name,
-  value: campus.name
+  value: campus.id
 })))
-const campusSelect = ref<string | null>(props.record?.campus ?? null)
+const campusSelect = ref<number | null>(null)
 
-onUpdated(() => {
-  // reset refs
-  confirmation.value = RecordStatus.APPOINTMENT_CONFIRMED
-  rejectReason.value = ""
-  console.debug("updated: ", props.record)
-  campusSelect.value = props.record?.campus ?? null
-  console.debug("campusList: ", campusList)
-})
+const handleSubmit = async () => {
+  if (!props.record) return
+  const record = toRaw(props.record)
 
-const handleAppointmentSubmit = (isConfirmed: boolean, record: API.Record) => {
-  if (!isConfirmed)
-  {
-    if (!rejectReason.value)
-    {
+  if (action.value === "reject") {
+    if (!reasonInput.value) {
       message.error('请填写拒绝理由')
       return
     }
-  }
-  else {
-    if (campusSelect.value !== record.campus)
-    {
-      record.campus = campusSelect.value!
+    loading.value = true
+    try {
+      await markRejected(record.id, reasonInput.value)
+      message.success('驳回成功')
+    } catch {
+      message.error('驳回失败')
+    } finally {
+      loading.value = false
+    }
+  } else if (action.value === "refer") {
+    loading.value = true
+    try {
+      const payload: Record<string, unknown> = { status: "referred" }
+      if (reasonInput.value) payload.referral_reason = reasonInput.value
+      await updateStatus(record.id, "referred", reasonInput.value)
+      message.success('已建议返厂')
+    } catch {
+      message.error('提交失败')
+    } finally {
+      loading.value = false
+    }
+  } else {
+    loading.value = true
+    try {
+      await updateStatus(record.id, "confirmed")
+      if (campusSelect.value !== null) {
+        console.log('campus change requested, using PUT', campusSelect.value)
+      }
+      message.success('已确认受理')
+    } catch {
+      message.error('提交失败')
+    } finally {
+      loading.value = false
     }
   }
-  handleAppointmentConfirm(record)
 }
 
-const handleAppointmentArrive = (record: API.Record) => {
-  loading.value = 'arrive'
-  let updated = toRaw(record!)
-  updated = {
-    ...updated!,
-    status: RecordStatus.RESOLVING,
-    worker: Auth.user.value!.url,
-    arrive_time: (new Date()).toISOString()
+const handleArrive = async () => {
+  if (!props.record) return
+  loading.value = true
+  try {
+    await markArrived(props.record.id)
+    message.success('已到诊所')
+  } catch {
+    message.error('操作失败')
+  } finally {
+    loading.value = false
   }
-  updateRecord(updated, record)
 }
 
-const handleAppointmentMissing = (record: API.Record) => {
-  loading.value = 'whereRU'
-  let updated = toRaw(record!)
-  updated = {
-    ...updated!,
-    status: RecordStatus.WHERE_ARE_YOU,
-    worker: Auth.user.value!.url
+const handleNoShow = async () => {
+  if (!props.record) return
+  loading.value = true
+  try {
+    await updateStatus(props.record.id, "no_show")
+    message.success('已标记未到')
+  } catch {
+    message.error('操作失败')
+  } finally {
+    loading.value = false
   }
-  updateRecord(updated, record)
 }
 
-const handleAppointmentGoToOEM = (record: API.Record) => {
-  loading.value = 'goToOEM'
-  let updated = toRaw(record!)
-  updated = {
-    ...updated!,
-    status: RecordStatus.GO_TO_OEM,
-    worker: Auth.user.value!.url
+const handleInProgress = async () => {
+  if (!props.record) return
+  loading.value = true
+  try {
+    await markInProgress(props.record.id)
+    message.success('开始处理')
+  } catch {
+    message.error('操作失败')
+  } finally {
+    loading.value = false
   }
-  updateRecord(updated, record)
 }
 
-const handleAppointmentConfirm = (record: API.Record) => {
-  let updated = toRaw(record!)
-  const status = confirmation.value
-  const finished = (
-    confirmation.value == RecordStatus.GO_TO_OEM || 
-    confirmation.value == RecordStatus.APPOINTMENT_REJECTED
-  )
-  updated = {
-    ...updated!,
-    status,
-    worker: Auth.user.value!.url,
-    reject_reason: finished ? rejectReason.value : null,
-    arrive_time: finished ? (new Date()).toISOString() : null
+const handleComplete = async () => {
+  if (!props.record) return
+  loading.value = true
+  try {
+    await markCompleted(props.record.id)
+    const workerDesc = probDescs.value.display
+    if (workerDesc) {
+      await updateStatus(props.record.id, "completed", workerDesc)
+    }
+    message.success('处理完成')
+  } catch {
+    message.error('提交失败')
+  } finally {
+    loading.value = false
   }
-  updateRecord(updated, record)
 }
 
-const handleAppointmentChangeCampus = (campus: API.Campus["name"], record: API.Record) => {
-  loading.value = 'changeCampus'
-  let updated = toRaw(record!)
-  updated = {
-    ...updated!,
-    campus,
-    worker: Auth.user.value!.url
+const handleReferred = async () => {
+  if (!props.record) return
+  loading.value = true
+  try {
+    await updateStatus(props.record.id, "referred")
+    message.success('已建议返厂')
+  } catch {
+    message.error('提交失败')
+  } finally {
+    loading.value = false
   }
-  updateRecord(updated, record)
 }
 
-const handleAppointmentComplete = (record: API.Record) => {
-  console.debug('solve: ', repairComment.value.validate && probDescs.value.validate)
-  console.debug('solve:', repairComment.value.value, ", ", repairComment.value.display)
-  console.debug('solve:', probDescs.value.value, ", ", probDescs.value.display)
-  loading.value = 'resolve'
-  let updated = toRaw(record!)
-  updated = {
-    ...updated!,
-    worker: Auth.user.value!.url,
-    status: RecordStatus.RESOLVED,
-    worker_description: probDescs.value.display,
-    method: repairComment.value.display,
-    deal_time: (new Date()).toISOString()
-  }
-  updateRecord(updated, record)
-}
-
-const updateRecord = async (updated: API.Record, prev: API.Record) => {
-  store.history.set(prev.id, [
-    ...(store.history.get(prev.id) ?? []),
-    prev
-  ])
-  update(updated).then(() => {
-    message.success('提交成功咯!')
-  }).catch(() => {
-    message.error('提交出错了qwq')
-  }).finally(() => {
-    loading.value = null
-  })
-}
-
-const revertRecord = (id: number) => {
-  const history = store.history.get(id)
-  if (!history || history.length === 0)
-  {
+const handleRevert = async () => {
+  if (!props.record) return
+  const prev = await revertStoreRecord(props.record.id)
+  if (prev) {
+    try {
+      await updateStatus(prev.id, prev.status, prev.worker_desc)
+      message.success('Back to Future')
+    } catch {
+      message.error('时间机器坏了qwq')
+    }
+  } else {
     message.error('时间不能倒流')
-    return
   }
-  const last = history.pop()!
-  update(last).then(() => {
-    message.success('Back to Future')
-    store.records[id] = last
-  }).catch(() => {
-    message.error('时间机器坏了qwq')
-  })
 }
 </script>

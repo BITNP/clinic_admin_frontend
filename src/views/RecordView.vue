@@ -54,12 +54,10 @@ const props = defineProps({
 })
 
 const toPrevRecord = () => {
-  console.debug("toPrevRecord: ", prevRecord(currentId.value))
   router.push(`/records/${prevRecord(currentId.value)}`)
 }
 
 const toNextRecord = () => {
-  console.debug("toNextRecord: ", nextRecord(currentId.value))
   router.push(`/records/${nextRecord(currentId.value)}`)
 }
 
@@ -70,10 +68,8 @@ const currentId = ref<number>(0)
 
 const loadRecord = async () => {
   currentId.value = parseInt(props.recordId)
-  console.debug("loadRecord: ", currentId.value)
   record.value = store.records[parseInt(props.recordId)]!
 
-  console.debug("loadRecord: ", record.value)
   setTimeout(() => {
     if (!record.value) {
       message.error("加载不出来了啦 qwq")
@@ -82,15 +78,25 @@ const loadRecord = async () => {
     }
   }, 2000)
 
-  if (record.value?.user) {
-    owner.value = (await Api.get<API.IUsers>(
-      record.value.user.replace(/.*\/api/g, "/api")
-    )).data
+  // owner info is now directly in record.user and record.realname
+  if (record.value) {
+    owner.value = {
+      id: 0,
+      account_id: record.value.user,
+      realname: record.value.realname,
+      phone_num: record.value.phone_num,
+      role: ""
+    }
   }
-  if (record.value?.worker) {
-    worker.value = (await Api.get<API.IUsers>(
-      record.value.worker.replace(/.*\/api/g, "/api")
-    )).data
+
+  // worker info can be fetched by staff ID
+  if (record.value?.worker_id) {
+    try {
+      const res = await Api.get<API.IUsers>(`/api/admin/staff/${record.value.worker_id}`)
+      worker.value = res.data
+    } catch {
+      worker.value = null
+    }
   }
 }
 
@@ -108,7 +114,7 @@ watch(() => store.records, loadRecord)
 watch(() => {
   return store.records[parseInt(props.recordId)]!
 }, () => {
-  record.value = record.value = store.records[parseInt(props.recordId)]!
+  record.value = store.records[parseInt(props.recordId)]!
   loadRecord()
 })
 

@@ -1,99 +1,60 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 namespace API {
-  type Url = string
-  type DateString = `${number}-${number}-${number}`
+  type DateString = string
   type TimeString = string
-  type Password = string
 
-  // /api/campus/
-  type Campus = {
+  // /api/admin/rooms
+  type Room = {
+    id: number
     name: string
     address: string
+    enabled: boolean
   }
 
-  interface ICampus {
-    [k: number]: Campus
-  }
-
-  // /api/date/
-  type DateStatus = {
-    url: Url
-    count: number
-    finish: number
-
-    campus: Campus["name"]
-    title: string
-    date: DateString
+  // /api/admin/service-dates
+  type ServiceDate = {
+    id: number
     capacity: number
-    startTime: TimeString
-    endTime: TimeString
-  }
-
-  interface IDateStatus {
-    campus: Campus["name"]
-    title: string
+    room_id: number
     date: DateString
-    capacity: number
-    startTime: TimeString
-    endTime: TimeString
+    startTime: string
+    endTime: string
+    title: string
   }
 
-  // /api/users
+  // /api/users/me/ or /api/user/
   interface IUsers {
-    url: Url
     id: number
-
-    username: string
+    account_id: string
     realname: string
-
-    school: string
-    campus: Campus["name"]
     phone_num: string
-
-    is_staff: boolean
-
-    work_mon: boolean
-    work_tue: boolean
-    work_wedn: boolean
-    work_thu: boolean
-    work_fri: boolean
-    work_sat: boolean
-    work_sun: boolean
+    role: string
   }
 
-  // /api/records
+  // /api/admin/records
   type Record = {
-    url: Url
     id: number
-    status: RecordStatus
-
+    user: string
     realname: string
     phone_num: string
-    campus: Campus["name"]
-
-    description: string
-    model: string
-    password: Password
-
+    status: string
     appointment_time: DateString
-    arrive_time: TimeString | null
-    deal_time: unknown
-
-    worker_description: string
-    method: unknown
-    reject_reason: string | null
-
-    is_taken: boolean
-
-    user: Url
-    worker: Url
+    description: string
+    campus: string
+    worker_desc: string
+    reject_reason: string
+    referral_reason: string
+    model: string
+    password: string
+    arrive_time: string | null
+    finish_time: string | null
+    worker_id: number | null
   }
 
   interface IRecords {
-    count: number
-    next: Url
-    previous: Url
-    results: Record[]
+    items: Record[]
+    total: number
+    page: number
+    pageSize: number
   }
 
   type RecordDesc = {
@@ -103,21 +64,18 @@ namespace API {
   }
 
   interface IAnnouncement {
-    url: Url
-
+    id: number
     title: string
     content: string
     brief: string
-
     priority: number
     tag: AnnouncementTags
-
     createdTime: string
     lastEditedTime: string
     expireDate: DateString
   }
 
-  type AnnouncementTags = "TOS" | "TA" | "AN"
+  type AnnouncementTags = "tos" | "pinned" | "normal"
 }
 
 export default API

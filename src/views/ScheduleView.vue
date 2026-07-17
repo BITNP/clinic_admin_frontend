@@ -4,17 +4,14 @@
       <n-tabs v-for="(list, idx) in dateGroup" :key="idx" animated>
         <n-tab-pane v-for="(items, date) in list" :name="date" :tab="date" :key="date">
           <n-grid cols="1 600:2" :x-gap="8" :y-gap="8">
-            <n-grid-item v-for="item in items" :key="item.url">
+            <n-grid-item v-for="item in items" :key="item.id">
               <n-card>
-                <n-thing :title="item.campus" :title-extra="item.title"
-                  :description="`${item.startTime} - ${item.endTime}`">
+                <n-thing :title="roomName(item.room_id)" :title-extra="item.title"
+                  :description="`${formatTime(item.startTime)} - ${formatTime(item.endTime)}`">
                   <n-space justify="space-between">
                     <n-space>
                       <n-button size="small" secondary>
-                        {{ `已预约 ${item.count} / ${item.capacity}` }}
-                      </n-button>
-                      <n-button size="small" secondary>
-                        {{ `已完成 ${item.finish} / ${item.capacity}` }}
+                        {{ `容量 ${item.capacity}` }}
                       </n-button>
                     </n-space>
                     <n-dropdown trigger="hover" :options="options" @select="(key: string) => handleSelect(key, item)">
@@ -54,29 +51,35 @@ import PlaylistAddFilled from '@vicons/material/PlaylistAddFilled';
 import { useRouter } from 'vue-router';
 import EditFilled from '@vicons/material/EditFilled';
 import DeleteFilled from '@vicons/material/DeleteFilled';
-import ClearFilled from '@vicons/material/ClearFilled';
 import PageWrapper from '@/components/PageWrapper.vue';
 
 const router = useRouter();
 
 const dateGroup = reactive({
-  groups: {} as { [k: string]: API.DateStatus[] }
+  groups: {} as { [k: string]: API.ServiceDate[] }
 });
 
-onMounted(async () => {
-  const res = await Api.get<API.DateStatus[]>('/api/date/');
-  store.dateList = res.data;
-  console.debug("dateList", store.dateList);
+const formatTime = (iso: string) => {
+  const d = new Date(iso)
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+}
 
-  res.data.forEach((item) => {
-    const date = item.date;
+const roomName = (roomId: number) => {
+  const room = store.campusList.find(r => r.id === roomId)
+  return room?.name ?? `校区#${roomId}`
+}
+
+onMounted(async () => {
+  const res = await Api.get<{ items: API.ServiceDate[]; total: number; page: number; pageSize: number }>('/api/admin/service-dates');
+  store.dateList = res.data.items;
+
+  res.data.items.forEach((item) => {
+    const date = item.date.slice(0, 10);
     if (!dateGroup.groups[date]) {
       dateGroup.groups[date] = [];
     }
     dateGroup.groups[date].push(item);
   });
-
-  console.debug("dateGroup", dateGroup.groups);
 })
 
 const renderIcon = (icon: Component) => {
@@ -97,18 +100,13 @@ const options = [
     label: "删除",
     key: "delete",
     icon: renderIcon(DeleteFilled)
-  },
-  {
-    label: "清空",
-    key: "clear",
-    icon: renderIcon(ClearFilled)
   }
 ]
 
 const dialog = useDialog();
 const message = useMessage();
 
-const handleSelect = (key: string, item: API.DateStatus) => {
+const handleSelect = (key: string, item: API.ServiceDate) => {
   if (key === "delete") {
     dialog.warning({
       title: '警告',
@@ -116,27 +114,14 @@ const handleSelect = (key: string, item: API.DateStatus) => {
       positiveText: '确定',
       negativeText: '不确定',
       onPositiveClick: async () => {
-        Api.delete(`${item.url.replace(/.*\/api/g, '/api')}`);
-        message.success('确定')
-      },
-      onNegativeClick: () => { }
-    })
-  }
-  if (key === "clear") {
-    dialog.warning({
-      title: '警告',
-      content: '确定清空所有预约吗？',
-      positiveText: '确定',
-      negativeText: '不确定',
-      onPositiveClick: async () => {
-        Api.get(`${item.url.replace(/.*\/api/g, '/api')}cancel_all/`);
-        message.success('确定')
+        await Api.delete(`/api/admin/service-dates/${item.id}`);
+        message.success('已删除')
       },
       onNegativeClick: () => { }
     })
   }
   if (key === "edit") {
-    router.push(`/schedule/${item.url.split("/").slice(-2)[0]}`);
+    router.push(`/schedule/${item.id}`);
   }
 }
 </script>
