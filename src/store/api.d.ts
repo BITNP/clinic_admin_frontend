@@ -19,6 +19,7 @@ namespace API {
     startTime: string
     endTime: string
     title: string
+    count: number
   }
 
   // /api/users/me/ or /api/user/

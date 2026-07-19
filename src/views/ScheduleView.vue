@@ -11,7 +11,7 @@
                   <n-space justify="space-between">
                     <n-space>
                       <n-button size="small" secondary>
-                        {{ `容量 ${item.capacity}` }}
+                        {{ `容量 ${item.count}/${item.capacity}` }}
                       </n-button>
                     </n-space>
                     <n-dropdown trigger="hover" :options="options" @select="(key: string) => handleSelect(key, item)">
