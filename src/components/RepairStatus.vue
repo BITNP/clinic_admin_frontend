@@ -31,14 +31,14 @@
 
     <!-- confirmed: waiting for arrival -->
     <n-space v-if="record?.status === 'confirmed'">
-      <n-button type="primary" style="width: 150px" :disabled="loading !== null"
+      <n-button type="primary" style="width: 150px" :disabled="loading"
         @click="handleArrive">
         <template #icon>
           <DoneFilled />
         </template>
         已到诊所
       </n-button>
-      <n-button style="width: 150px" :disabled="loading !== null"
+      <n-button style="width: 150px" :disabled="loading"
         @click="handleNoShow">
         <template #icon>
           <PersonOffFilled />
@@ -49,7 +49,7 @@
 
     <!-- arrived: ready to start work -->
     <n-space v-if="record?.status === 'arrived'">
-      <n-button type="primary" style="width: 150px" :disabled="loading !== null"
+      <n-button type="primary" style="width: 150px" :disabled="loading"
         @click="handleInProgress">
         <template #icon>
           <DoneFilled />
@@ -63,7 +63,7 @@
       <RepairComment v-model:value="probDescs" label="问题描述" :options="store.probDescs" />
       <RepairComment v-model:value="repairComment" label="处理方式" :options="store.repairMethods" />
       <n-space>
-        <n-button type="primary" style="width: 150px" :disabled="loading !== null || !repairComment.validate"
+        <n-button type="primary" style="width: 150px" :disabled="loading || !repairComment.validate"
           @click="handleComplete">
           <template #icon>
             <DoneFilled />
@@ -71,7 +71,7 @@
           已解决
         </n-button>
 
-        <n-button style="width: 150px" :disabled="loading !== null"
+        <n-button style="width: 150px" :disabled="loading"
           @click="handleReferred">
           <template #icon>
             <FactoryFilled />

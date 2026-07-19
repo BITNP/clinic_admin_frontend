@@ -1,8 +1,8 @@
 <template>
   <PageWrapper title="服务时间管理">
     <div v-if="Object.keys(dateGroup.groups).length > 0">
-      <n-tabs v-for="(list, idx) in dateGroup" :key="idx" animated>
-        <n-tab-pane v-for="(items, date) in list" :name="date" :tab="date" :key="date">
+      <n-tabs animated>
+        <n-tab-pane v-for="(items, date) in dateGroup.groups" :name="date" :tab="date" :key="date">
           <n-grid cols="1 600:2" :x-gap="8" :y-gap="8">
             <n-grid-item v-for="item in items" :key="item.id">
               <n-card>
@@ -43,7 +43,7 @@
 <script lang="ts" setup>
 import Api from '@/utils/Api';
 import type API from "@/store/api";
-import store from "@/store";
+import store, { load } from "@/store";
 import { onMounted, reactive, h } from 'vue';
 import type { Component } from 'vue';
 import { NIcon, useDialog, useMessage } from 'naive-ui';
@@ -64,17 +64,26 @@ const formatTime = (iso: string) => {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
 }
 
+const formatDate = (iso: string) => {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+}
+
 const roomName = (roomId: number) => {
   const room = store.campusList.find(r => r.id === roomId)
   return room?.name ?? `校区#${roomId}`
 }
 
 onMounted(async () => {
+  if (!store.campusList.length) {
+    await load();
+  }
+
   const res = await Api.get<{ items: API.ServiceDate[]; total: number; page: number; pageSize: number }>('/api/admin/service-dates');
   store.dateList = res.data.items;
 
   res.data.items.forEach((item) => {
-    const date = item.date.slice(0, 10);
+    const date = formatDate(item.date);
     if (!dateGroup.groups[date]) {
       dateGroup.groups[date] = [];
     }

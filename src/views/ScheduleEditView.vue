@@ -3,23 +3,23 @@
     <n-form :model="formValue" :rules="formRule" ref="formRef">
       <n-grid cols="18 800:22" :x-gap="22">
         <n-form-item-gi :span="8" label="服务描述" path="title">
-          <n-input v-model:value="formValue!.title" placeholder="描述" />
+          <n-input v-model:value="formValue.title" placeholder="描述" />
         </n-form-item-gi>
         <n-form-item-gi :span="8" label="选择校区" path="room_id">
-          <n-select v-model:value="formValue!.room_id" :options="campuses" placeholder="校区" />
+          <n-select v-model:value="formValue.room_id" :options="campuses" placeholder="校区" />
         </n-form-item-gi>
         <n-form-item-gi :span="6" label="设置容量" path="capacity">
-          <n-input-number v-model:value="formValue!.capacity" placeholder="容量" />
+          <n-input-number v-model:value="formValue.capacity" placeholder="容量" />
         </n-form-item-gi>
         <n-form-item-gi span="12 500:0"></n-form-item-gi>
         <n-form-item-gi :span="6" label="开始时间" path="startTime">
-          <n-time-picker v-model:value="formValue!.startTime" placeholder="开始时间" style="width: 100%" />
+          <n-time-picker v-model:value="formValue.startTime" placeholder="开始时间" style="width: 100%" />
         </n-form-item-gi>
         <n-form-item-gi :span="6" label="结束时间" path="endTime">
-          <n-time-picker v-model:value="formValue!.endTime" placeholder="结束时间" style="width: 100%" />
+          <n-time-picker v-model:value="formValue.endTime" placeholder="结束时间" style="width: 100%" />
         </n-form-item-gi>
         <n-form-item-gi span="12 800:8" label="日期">
-          <n-date-picker v-model:value="formValue!.date" placeholder="日期" style="width: 100%"
+          <n-date-picker v-model:value="formValue.date" placeholder="日期" style="width: 100%"
             :is-date-disabled="isDateDisabled" />
         </n-form-item-gi>
       </n-grid>
@@ -31,8 +31,9 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import store, { load } from "@/store";
+import type API from "@/store/api";
 import type { FormInst } from "naive-ui";
 import Api from "@/utils/Api";
 import { useMessage } from 'naive-ui';
@@ -69,16 +70,16 @@ const datesUnavailable = computed(() => store.dateList.reduce((acc, date) => {
   if (!acc.has(key)) {
     acc.set(key, [])
   }
-  acc.get(key)?.push(date.date.slice(0, 10))
+  acc.get(key)?.push(toDateStr(new Date(date.date).getTime()))
   return acc
 }, new Map<number, string[]>()))
 
 const isDateDisabled = (current: number) => {
-  if (!formValue.value) return false
+  if (!formValue) return false
   const key = toDateStr(current)
   return key !== toDateStr(originalValue.date) &&
-    datesUnavailable.value.has(formValue.value.room_id!) &&
-    datesUnavailable.value.get(formValue.value.room_id!)?.includes(key)
+    datesUnavailable.value.has(formValue.room_id!) &&
+    datesUnavailable.value.get(formValue.room_id!)?.includes(key)
 }
 
 const campuses = computed(() => store.campusList.map((item) => {
@@ -105,11 +106,13 @@ let originalValue: EditForm = {
   endTime: 0,
   date: 0,
 }
-const formValue = ref<EditForm>(originalValue);
+const formValue = reactive<EditForm>(originalValue);
 
 const formRule = {
   title: { required: true, message: "请输入服务描述", trigger: ["blur"] },
-  room_id: { required: true, message: "请选择校区", trigger: ["change"] },
+  room_id: { required: true, message: "请选择校区", trigger: ["change"], validator: (rule: any, value: any) => {
+    return value !== null && value !== undefined && value !== ''
+  } },
   capacity: {
     required: true, message: "请输入容量", trigger: ["blur"], validator: (rule: any, value: number) => {
       if (value < 1) {
@@ -136,44 +139,53 @@ onMounted(async () => {
   }
   await Auth.auth();
 
-  const target = store.dateList.find(d => d.id === parseInt(props.dateId))
+  let target = store.dateList.find(d => d.id === parseInt(props.dateId))
+  if (!target) {
+    const res = await Api.get<API.ServiceDate>(`/api/admin/service-dates/${props.dateId}`)
+    target = res.data
+  }
+
   if (target) {
-    formValue.value = {
+    Object.assign(formValue, {
       title: target.title,
       room_id: target.room_id,
       capacity: target.capacity,
       startTime: new Date(target.startTime).getTime(),
       endTime: new Date(target.endTime).getTime(),
       date: new Date(target.date).getTime(),
-    }
-    originalValue = { ...formValue.value }
+    })
+    originalValue = { ...formValue }
   }
 })
 
-const handleSubmit = () => {
-  formRef.value?.validate().then(async (valid) => {
-    if (valid) {
-      if (!formValue.value) return
-      if (!formValue.value.date) return message.error("日期不对喔")
+const handleSubmit = async () => {
+  try {
+    await formRef.value?.validate()
+  } catch (errors) {
+    console.error('validation failed:', errors)
+    return
+  }
 
-      const payload = {
-        title: formValue.value.title,
-        room_id: formValue.value.room_id,
-        capacity: formValue.value.capacity,
-        date: toRFC3339(formValue.value.date),
-        startTime: toRFC3339(formValue.value.date, formValue.value.startTime),
-        endTime: toRFC3339(formValue.value.date, formValue.value.endTime),
-      }
+  if (!formValue.date) return message.error("日期不对喔")
 
-      try {
-        await Api.put(`/api/admin/service-dates/${props.dateId}`, payload)
-        message.success("提交成功啦")
-      } catch (e) {
-        message.error("提交失败")
-      } finally {
-        loading.value = false
-      }
-    }
-  })
+  const payload = {
+    title: formValue.title,
+    room_id: formValue.room_id,
+    capacity: formValue.capacity,
+    date: toRFC3339(formValue.date),
+    startTime: toRFC3339(formValue.date, formValue.startTime),
+    endTime: toRFC3339(formValue.date, formValue.endTime),
+  }
+
+  try {
+    loading.value = true
+    await Api.put(`/api/admin/service-dates/${props.dateId}`, payload)
+    message.success("提交成功啦")
+  } catch (e: any) {
+    console.error('submit failed:', e)
+    message.error(e.response?.data?.error || "提交失败")
+  } finally {
+    loading.value = false
+  }
 }
 </script>
