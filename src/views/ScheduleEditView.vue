@@ -9,7 +9,7 @@
           <n-select v-model:value="formValue.room_id" :options="campuses" placeholder="校区" />
         </n-form-item-gi>
         <n-form-item-gi :span="6" label="设置容量" path="capacity">
-          <n-input-number v-model:value="formValue.capacity" placeholder="容量" />
+          <n-input-number v-model:value="formValue.capacity" placeholder="容量" :min="currentCount" />
         </n-form-item-gi>
         <n-form-item-gi span="12 500:0"></n-form-item-gi>
         <n-form-item-gi :span="6" label="开始时间" path="startTime">
@@ -48,6 +48,7 @@ const props = defineProps({
 
 const message = useMessage();
 const loading = ref<boolean>(false)
+const currentCount = ref<number>(0)
 
 const formRef = ref<FormInst | null>();
 
@@ -115,8 +116,8 @@ const formRule = {
   } },
   capacity: {
     required: true, message: "请输入容量", trigger: ["blur"], validator: (rule: any, value: number) => {
-      if (value < 1) {
-        return "哎呀不对不对不对"
+      if (value < currentCount.value) {
+        return `容量不能小于当前已预约数 ${currentCount.value}`
       }
       return true
     }
@@ -146,6 +147,7 @@ onMounted(async () => {
   }
 
   if (target) {
+    currentCount.value = target.count
     Object.assign(formValue, {
       title: target.title,
       room_id: target.room_id,
