@@ -1,24 +1,19 @@
 <template>
-  <n-h5>筛选</n-h5>
   <n-form-item label="校区">
     <n-select v-model:value="campus" :options="campusList" />
   </n-form-item>
   <n-form-item label="时间">
-    <n-checkbox v-model:checked="dateAll" label="全部" style="flex-shrink: 0" />
-    <n-checkbox-group v-model:value="date" style="width: 100%" :disabled="dateAll">
-      <n-checkbox value="today" label="今天" />
-      <n-checkbox value="past" label="之前" />
-      <n-checkbox value="future" label="以后" />
-    </n-checkbox-group>
+    <div style="display: flex; gap: 8px; width: 100%;">
+      <n-button :type="isToday ? 'primary' : 'default'" @click="toggleToday" size="small">今天</n-button>
+      <n-date-picker v-model:value="selectedDate" type="date" clearable :disabled="isToday" style="flex: 1" />
+    </div>
   </n-form-item>
   <n-space style="padding: 8px 0">
     <n-button type="primary" @click="() => {
       store.filters = generateFilters()
-      emit('close')
     }">确认</n-button>
     <n-button @click="() => {
       store.filters = {}
-      emit('close')
     }">重置</n-button>
   </n-space>
 </template>
@@ -26,9 +21,7 @@
 <script setup lang="ts">
 import store from "@/store";
 import type API from "@/store/api";
-import { onMounted, ref, watchEffect } from "vue"
-
-const emit = defineEmits(["close"])
+import { onMounted, ref, watch } from "vue"
 
 const campus = ref<string>("all")
 const campusList = ref<{
@@ -39,14 +32,33 @@ const campusList = ref<{
   value: "all"
 }])
 
-type FilterDates = "today" | "past" | "future"
-const date = ref<FilterDates[]>(["today", "past", "future"])
-const dateAll = ref<boolean>(true)
+const isToday = ref(false)
+const selectedDate = ref<number | null>(null)
+
+watch(isToday, () => {
+  if (isToday.value) selectedDate.value = null
+  store.filters = generateFilters()
+})
+watch(selectedDate, () => {
+  if (selectedDate.value) isToday.value = false
+  store.filters = generateFilters()
+})
+
+const toggleToday = () => {
+  isToday.value = !isToday.value
+}
 
 onMounted(() => {
   campus.value = store.filters["campus"] ? store.filters["campus"][0].value : "all"
-  date.value = store.filters["date"] ? store.filters["date"].map((filter) => filter.value) as FilterDates[] : ["today", "past", "future"]
-  dateAll.value = date.value.length === 3
+
+  const dateFilter = store.filters["date"]
+  if (dateFilter && dateFilter.length > 0) {
+    if (dateFilter[0].value === "today") {
+      isToday.value = true
+    } else {
+      selectedDate.value = new Date(dateFilter[0].value).getTime()
+    }
+  }
 
   store.campusList.forEach((campus) => campusList.value.push({
     label: campus.name,
@@ -54,11 +66,13 @@ onMounted(() => {
   }))
 })
 
-watchEffect(() => {
-  if (dateAll.value) {
-    date.value = ["today", "past", "future"]
+watch(() => store.filters, (filters) => {
+  if (Object.keys(filters).length === 0) {
+    campus.value = "all"
+    isToday.value = false
+    selectedDate.value = null
   }
-})
+}, { deep: true })
 
 const generateFilters = () => {
   let filters = {} as typeof store.filters
@@ -77,26 +91,22 @@ const generateFilters = () => {
     })
   }
 
-  date.value.forEach((d) => {
+  if (isToday.value) {
+    let now = new Date().toLocaleDateString('en-CA')
     if (!filters["date"]) filters["date"] = []
-    let now = (new Date()).toISOString().slice(0, 10)
-    let filter = ref<(args: any) => boolean>();
-    switch (d) {
-      case "today":
-        filter.value = (ele) => ele.appointment_time === now;
-        break;
-      case "future":
-        filter.value = (ele) => ele.appointment_time > now;
-        break;
-      case "past":
-        filter.value = (ele) => ele.appointment_time < now;
-        break;
-    }
     filters["date"].push({
-      value: d,
-      filter: filter.value
+      value: "today",
+      filter: (ele: any) => ele.appointment_time === now
     })
-  })
+  } else if (selectedDate.value) {
+    let dateStr = new Date(selectedDate.value).toLocaleDateString('en-CA')
+    if (!filters["date"]) filters["date"] = []
+    filters["date"].push({
+      value: dateStr,
+      filter: (ele: any) => ele.appointment_time === dateStr
+    })
+  }
+
   return filters
 }
 </script>

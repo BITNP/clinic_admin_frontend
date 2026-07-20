@@ -1,47 +1,17 @@
 <template>
   <div ref="listDOM" style="margin-top: 64px; overflow: auto; height: calc(100vh - 64px)" @scroll="handleScroll">
     <n-list hoverable clickable v-if="recordCount > 0">
-      <div v-if="Auth.user.value?.role === 'admin'" style="padding: 12px 20px">
-        <div role="none" style="display: flex; gap: 8px 12px; transition-duration: 0.267s;">
-          <n-button type="primary"
-            :style="(filterCount === 0 ? 'flex-shrink: 1; width: 100%;transition-duration: 0.267s;' : 'transition-duration: 0.267s;')"
-            size="large" @click="createRecord">
-            <template #icon>
-              <AddFilled />
-            </template>
-            <template v-if="filterCount === 0">添加任务</template>
-          </n-button>
-
-          <n-modal v-if="isPopup" :show="filterPopupShow">
-            <n-card>
-              <FilterPanel @close="() => {
-                  filterPopupShow = false
-                }" />
-            </n-card>
-          </n-modal>
-          <n-button v-if="isPopup" :type="filterCount > 0 ? 'info' : 'default'"
-            :style="(filterCount > 0 ? 'flex-shrink: 1; width: 100%; transition-duration: 0.267s;' : 'transition-duration: 0.267s;')"
-            size="large" @click="() => filterPopupShow = true">
-            <template #icon>
-              <FilterListFilled />
-            </template>
-            <template v-if="filterCount > 0">筛选</template>
-          </n-button>
-          <n-popover v-else :show="filterPanelShow" placement="bottom-end" trigger="click" style="width: 300px" title="筛选">
-            <FilterPanel @close="() => {
-                filterPanelShow = false
-              }" />
-            <template #trigger>
-              <n-button :type="filterCount > 0 ? 'info' : 'default'"
-                :style="(filterCount > 0 ? 'flex-shrink: 1; width: 100%; transition-duration: 0.267s;' : 'transition-duration: 0.267s;')"
-                size="large" @click="() => filterPanelShow = true">
-                <template #icon>
-                  <FilterListFilled />
-                </template>
-                <template v-if="filterCount > 0">筛选</template>
-              </n-button>
-            </template>
-          </n-popover>
+      <div v-if="Auth.user.value?.role === 'admin'" style="padding: 8px 20px 0">
+        <div role="none" style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;" @click="filterExpanded = !filterExpanded">
+          <n-icon :style="{ transition: 'transform 0.2s', transform: filterExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }">
+            <ArrowDropDownFilled />
+          </n-icon>
+          <span>筛选</span>
+        </div>
+        <div class="filter-collapse" :class="{ expanded: filterExpanded }">
+          <div>
+            <FilterPanel />
+          </div>
         </div>
       </div>
       <n-list-item v-for="record in records" :key="record.id" @click="showRecord(record)"
@@ -69,8 +39,7 @@ import type API from "@/store/api";
 import { load, visibility } from "@/store/record"
 import store from "@/store"
 import { lt800px as isShrink, lt600px as isPopup } from "@/utils/Responsive"
-import AddFilled from "@vicons/material/AddFilled"
-import FilterListFilled from "@vicons/material/FilterListFilled"
+import ArrowDropDownFilled from "@vicons/material/ArrowDropDownFilled"
 
 import RecordItem from "@/components/RecordItem.vue"
 import FilterPanel from "./FilterPanel.vue";
@@ -103,22 +72,11 @@ const loadRecords = async () => {
   loading.value = false
 }
 
-const createRecord = () => {
-  router.push("/createRecord")
-}
-
 const showRecord = (record: API.Record) => {
   router.push(`/records/${record.id}`)
 
   if (isShrink.value) store.isDrawerOpen = false
 }
-
-watch(isShrink, (prev) => {
-  if (prev !== isShrink.value) {
-    filterPanelShow.value = filterPopupShow.value = false;
-  }
-  return isShrink.value;
-})
 
 watch(() => store.filters, () => {
   console.debug("filters: ", store.filters)
@@ -127,9 +85,26 @@ watch(() => store.records, () => {
   console.debug("records: ", store.records)
 }, { deep: true })
 
-const filterPanelShow = ref(false)
-const filterPopupShow = ref(false)
+const filterExpanded = ref(!isPopup.value)
+watch(isPopup, () => {
+  filterExpanded.value = !isPopup.value
+})
 const filterCount = computed(() => Object.keys(store.filters).length)
 const recordCount = computed(() => Object.keys(store.records).length)
 const records = computed(() => Object.keys(store.records).reverse().map((key) => store.records[parseInt(key)]))
 </script>
+
+<style scoped>
+.filter-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.filter-collapse.expanded {
+  grid-template-rows: 1fr;
+}
+.filter-collapse > div {
+  overflow: hidden;
+  min-height: 0;
+}
+</style>
