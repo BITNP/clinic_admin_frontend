@@ -17,6 +17,12 @@
           <n-input-number v-model:value="form.priority" placeholder="类型" />
         </n-form-item>
       </n-grid-item>
+      <n-grid-item>
+        <n-form-item label="过期日期" required>
+          <n-date-picker v-model:value="expireDateTimestamp" type="date" style="width: 100%"
+            :is-date-disabled="isDateDisabled" />
+        </n-form-item>
+      </n-grid-item>
     </n-grid>
 
     <n-form-item label="公告正文">
@@ -80,7 +86,11 @@ const defaultAnnouncement: API.IAnnouncement = {
   priority: 0,
   createdTime: "",
   lastEditedTime: "",
-  expireDate: formatDate(new Date())
+  expireDate: (() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 30)
+    return formatDate(d)
+  })()
 };
 
 const ctx = computed<API.IAnnouncement>(() =>
@@ -94,6 +104,28 @@ const form = reactive<API.IAnnouncement>({ ...defaultAnnouncement });
 const txt = ref<string>('');
 const unsaved = ref<boolean>(false);
 const ready = ref<boolean>(false);
+
+const expireDateTimestamp = computed({
+  get: () => {
+    if (!form.expireDate) return null
+    const d = new Date(form.expireDate)
+    return d.getTime()
+  },
+  set: (val: number | null) => {
+    if (val === null) {
+      form.expireDate = ''
+      return
+    }
+    const d = new Date(val)
+    form.expireDate = formatDate(d)
+  }
+})
+
+const isDateDisabled = (timestamp: number) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return timestamp < today.getTime()
+}
 
 const tags: [string, API.AnnouncementTags][] = [
   ["普通公告", "normal"],
