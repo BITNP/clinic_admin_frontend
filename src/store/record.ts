@@ -32,6 +32,11 @@ const updateStatus = async (id: number, status: string, worker_desc?: string) =>
   store.records[id] = res.data
 }
 
+const markConfirmed = async (id: number) => {
+  const res = await Api.post<API.Record>(`/api/admin/records/${id}/confirm`)
+  store.records[id] = res.data
+}
+
 const markArrived = async (id: number) => {
   const res = await Api.post<API.Record>(`/api/admin/records/${id}/arrive`)
   store.records[id] = res.data
@@ -49,6 +54,16 @@ const markCompleted = async (id: number) => {
 
 const markRejected = async (id: number, reason: string) => {
   const res = await Api.post<API.Record>(`/api/admin/records/${id}/reject`, { reason })
+  store.records[id] = res.data
+}
+
+const markReferred = async (id: number, reason?: string) => {
+  const res = await Api.post<API.Record>(`/api/admin/records/${id}/refer`, { reason })
+  store.records[id] = res.data
+}
+
+const markNoShow = async (id: number) => {
+  const res = await Api.post<API.Record>(`/api/admin/records/${id}/no-show`)
   store.records[id] = res.data
 }
 
@@ -117,10 +132,13 @@ window.$update = updateStatus
 export {
   load,
   updateStatus,
+  markConfirmed,
   markArrived,
   markInProgress,
   markCompleted,
   markRejected,
+  markReferred,
+  markNoShow,
   revertRecord,
   visibility,
   nextRecord,

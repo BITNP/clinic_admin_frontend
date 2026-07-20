@@ -98,7 +98,7 @@
 <script setup lang="tsx">
 import store from '@/store';
 import type API from '@/store/api';
-import { revertRecord as revertStoreRecord, updateStatus, markArrived, markInProgress, markCompleted, markRejected } from '@/store/record';
+import { revertRecord as revertStoreRecord, updateStatus, markConfirmed, markArrived, markInProgress, markCompleted, markRejected, markReferred, markNoShow } from '@/store/record';
 import DoneFilled from "@vicons/material/DoneFilled";
 import PersonOffFilled from "@vicons/material/PersonOffFilled";
 import HistoryFilled from "@vicons/material/HistoryFilled";
@@ -154,9 +154,7 @@ const handleSubmit = async () => {
   } else if (action.value === "refer") {
     loading.value = true
     try {
-      const payload: Record<string, unknown> = { status: "referred" }
-      if (reasonInput.value) payload.referral_reason = reasonInput.value
-      await updateStatus(record.id, "referred", reasonInput.value)
+      await markReferred(record.id, reasonInput.value || undefined)
       message.success('已建议返厂')
     } catch {
       message.error('提交失败')
@@ -166,9 +164,9 @@ const handleSubmit = async () => {
   } else {
     loading.value = true
     try {
-      await updateStatus(record.id, "confirmed")
+      await markConfirmed(record.id)
       if (campusSelect.value !== null) {
-        console.log('campus change requested, using PUT', campusSelect.value)
+        console.log('campus change requested', campusSelect.value)
       }
       message.success('已确认受理')
     } catch {
@@ -196,7 +194,7 @@ const handleNoShow = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await updateStatus(props.record.id, "no_show")
+    await markNoShow(props.record.id)
     message.success('已标记未到')
   } catch {
     message.error('操作失败')
@@ -239,7 +237,7 @@ const handleReferred = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await updateStatus(props.record.id, "referred")
+    await markReferred(props.record.id)
     message.success('已建议返厂')
   } catch {
     message.error('提交失败')
