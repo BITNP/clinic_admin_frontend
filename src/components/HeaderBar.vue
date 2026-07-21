@@ -34,6 +34,19 @@
           <n-popover trigger="hover">
             <template #trigger>
               <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
+                @click="router.push('/staff')">
+                <template #icon>
+                  <n-icon>
+                    <BadgeFilled />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            <span>人员管理</span>
+          </n-popover>
+          <n-popover trigger="hover">
+            <template #trigger>
+              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
                 @click="router.push('/announcement')">
                 <template #icon>
                   <n-icon>
@@ -125,6 +138,7 @@ import FlexAside from "@/components/FlexAside.vue"
 import { useRouter } from "vue-router"
 import EditCalendarFilled from "@vicons/material/EditCalendarFilled"
 import EditNotificationsFilled from "@vicons/material/EditNotificationsFilled"
+import BadgeFilled from "@vicons/material/BadgeFilled"
 import MoreVertFilled from "@vicons/material/MoreVertFilled"
 import LogOutFilled from "@vicons/material/LogOutFilled"
 import { lt600px } from "@/utils/Responsive";
@@ -144,6 +158,12 @@ const menu = [
     key: "schedule",
     icon: renderIcon(EditCalendarFilled),
     onClick: () => router.push("/schedule")
+  },
+  {
+    title: "人员管理",
+    key: "staff",
+    icon: renderIcon(BadgeFilled),
+    onClick: () => router.push("/staff")
   },
   {
     title: "编辑公告",

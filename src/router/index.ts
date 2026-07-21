@@ -41,6 +41,11 @@ const router = createRouter({
       name: "AnnouncementEdit",
       props: true,
       component: () => import("@/views/AnnouncementEditView.vue")
+    },
+    {
+      path: '/staff',
+      name: "staff",
+      component: () => import("@/views/StaffView.vue")
     }
   ]
 })

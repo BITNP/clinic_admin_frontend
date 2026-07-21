@@ -77,6 +77,14 @@ namespace API {
   }
 
   type AnnouncementTags = "tos" | "pinned" | "normal"
+
+  // /api/admin/staff
+  type Staff = {
+    id: number
+    account_id: string
+    realname: string
+    phone_num: string
+  }
 }
 
 export default API
