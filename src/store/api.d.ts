@@ -78,6 +78,34 @@ namespace API {
 
   type AnnouncementTags = "tos" | "pinned" | "normal"
 
+  // /api/admin/work-schedules
+  type WorkSchedule = {
+    id: number
+    name: string
+    start_date: DateString
+    end_date: DateString
+    enabled: boolean
+    weekdays?: WorkScheduleWeekday[]
+  }
+
+  type WorkScheduleWeekday = {
+    id: number
+    work_schedule_id: number
+    weekday: number
+    start_time: string
+    end_time: string
+    room_id: number
+    room?: Room
+    staff?: WorkScheduleStaff[]
+  }
+
+  type WorkScheduleStaff = {
+    id: number
+    weekday_id: number
+    staff_id: number
+    staff?: Staff
+  }
+
   // /api/admin/staff
   type Staff = {
     id: number

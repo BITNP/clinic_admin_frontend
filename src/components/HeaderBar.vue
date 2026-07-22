@@ -59,6 +59,19 @@
           </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
+              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
+                @click="router.push('/work-schedule')">
+                <template #icon>
+                  <n-icon>
+                    <CalendarMonthFilled />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            <span>排班管理</span>
+          </n-popover>
+          <n-popover trigger="hover">
+            <template #trigger>
               <n-popconfirm>
                 <template #trigger>
                   <n-button>
@@ -139,6 +152,7 @@ import { useRouter } from "vue-router"
 import EditCalendarFilled from "@vicons/material/EditCalendarFilled"
 import EditNotificationsFilled from "@vicons/material/EditNotificationsFilled"
 import BadgeFilled from "@vicons/material/BadgeFilled"
+import CalendarMonthFilled from "@vicons/material/CalendarMonthFilled"
 import MoreVertFilled from "@vicons/material/MoreVertFilled"
 import LogOutFilled from "@vicons/material/LogOutFilled"
 import { lt600px } from "@/utils/Responsive";
@@ -170,6 +184,12 @@ const menu = [
     key: "announcement",
     icon: renderIcon(EditNotificationsFilled),
     onClick: () => router.push("/announcement")
+  },
+  {
+    title: "排班管理",
+    key: "workSchedule",
+    icon: renderIcon(CalendarMonthFilled),
+    onClick: () => router.push("/work-schedule")
   },
   {
     title: "退出登录",
