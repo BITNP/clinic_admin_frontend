@@ -103,6 +103,7 @@ namespace API {
     id: number
     weekday_id: number
     staff_id: number
+    schedule_id: number
     staff?: Staff
   }
 
