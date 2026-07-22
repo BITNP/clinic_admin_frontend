@@ -72,13 +72,13 @@ const columns: DataTableColumn<StaffRow>[] = [
   {
     title: '处理单量',
     key: '处理单量',
-    sorter: (a, b) => Number(a.处理单量) - Number(b.处理单量),
+    sorter: (a, b) => safeNum(a.处理单量) - safeNum(b.处理单量),
     width: 100,
   },
   {
     title: '年份',
     key: '年份',
-    sorter: (a, b) => Number(a.年份) - Number(b.年份),
+    sorter: (a, b) => safeNum(a.年份) - safeNum(b.年份),
     width: 100,
   },
 ]
@@ -94,12 +94,14 @@ const displayData = computed<StaffRow[]>(() => {
   return list.map(s => ({
     id: s.id,
     姓名: s.realname || s.account_id,
-    权限: '—',
+    权限: s.role || '—',
     值班日: '—',
-    处理单量: '—',
-    年份: '—',
+    处理单量: s.handled_count != null ? String(s.handled_count) : '—',
+    年份: s.work_years?.length ? s.work_years.join(', ') : '—',
   }))
 })
+
+const safeNum = (v: string) => { const n = Number(v); return isNaN(n) ? -1 : n }
 
 const applyFilter = () => {
   activeFilter.value = searchName.value

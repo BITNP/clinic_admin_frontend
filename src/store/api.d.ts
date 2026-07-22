@@ -84,6 +84,9 @@ namespace API {
     account_id: string
     realname: string
     phone_num: string
+    role: string
+    handled_count: number
+    work_years: number[]
   }
 }
 
