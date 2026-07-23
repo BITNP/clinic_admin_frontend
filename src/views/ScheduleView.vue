@@ -20,6 +20,15 @@
     </div>
     <n-empty v-else />
   </PageWrapper>
+  <n-float-button :right="16" :bottom="96" type="primary" :width="144" :height="56"
+    @click="() => router.push('/schedule/next-week')">
+    <div style="display: flex; gap: 8px; flex-direction: row; align-items: center; justify-content: center; ">
+      <n-icon :size="24">
+        <PlaylistAddFilled />
+      </n-icon>
+      <span style="font-size: 0.8rem;">生成下周时间</span>
+    </div>
+  </n-float-button>
   <n-float-button :right="16" :bottom="24" type="primary" :width="144" :height="56"
     @click="() => router.push('/schedule/add')">
     <div style="display: flex; gap: 8px; flex-direction: row; align-items: center; justify-content: center; ">

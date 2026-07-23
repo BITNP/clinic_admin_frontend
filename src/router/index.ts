@@ -26,6 +26,11 @@ const router = createRouter({
       component: () => import("@/views/ScheduleAddView.vue")
     },
     {
+      path: '/schedule/next-week',
+      name: "scheduleNextWeek",
+      component: () => import("@/views/ScheduleNextWeekView.vue")
+    },
+    {
       path: '/schedule/:dateId',
       name: "scheduleDate",
       props: true,
