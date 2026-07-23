@@ -33,6 +33,7 @@
 
 <script lang="ts" setup>
 import Api from '@/utils/Api';
+import { AxiosError } from 'axios';
 import type API from "@/store/api";
 import store, { load } from "@/store";
 import { onMounted, reactive, computed } from 'vue';
@@ -106,10 +107,20 @@ const handleDelete = (item: API.ServiceDate) => {
     title: '警告',
     content: '确定删除吗？',
     positiveText: '确定',
-    negativeText: '不确定',
+    negativeText: '取消',
     onPositiveClick: async () => {
-      await Api.delete(`/api/admin/service-dates/${item.id}`);
-      message.success('已删除')
+      try {
+        await Api.delete(`/api/admin/service-dates/${item.id}`);
+        message.success('已删除')
+      } catch (err) {
+        const axiosErr = err as AxiosError
+        const data = axiosErr.response?.data as any
+        const errorMsg =
+          typeof data === 'string'
+            ? data
+            : (data?.message || data?.error || axiosErr.message || '删除失败')
+        message.error(errorMsg)
+      }
     },
     onNegativeClick: () => { }
   })
