@@ -44,7 +44,19 @@
             <n-table :bordered="false" :single-line="false">
               <thead>
                 <tr>
-                  <th v-for="day in weekdayLabels" :key="day.key">{{ day.label }}</th>
+                  <th v-for="(day, dayIdx) in weekdayLabels" :key="day.key" style="text-align: center;">
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                      <div style="display: flex; justify-content: center; align-items: center; gap: 4px;">
+                        <span>{{ day.label }}</span>
+                        <n-button text size="tiny" title="编辑工作时间" @click="openEditTimeModal(room.id, day.key)">
+                          <template #icon>
+                            <n-icon><EditFilled /></n-icon>
+                          </template>
+                        </n-button>
+                      </div>
+                      <span style="font-size: 12px; color: var(--text-color-3);">{{ room.weekdayTimeLabels[dayIdx] }}</span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -135,6 +147,33 @@
         </n-space>
       </template>
     </n-modal>
+
+    <n-modal v-model:show="showEditTimeModal" :title="`编辑工作时间 — ${editTimeDayLabel}`" preset="card" style="max-width: 400px;">
+      <n-form>
+        <n-form-item label="开始时间">
+          <n-time-picker
+            v-model:formatted-value="editTimeStart"
+            format="HH:mm"
+            placeholder="开始时间"
+            style="width: 100%;"
+          />
+        </n-form-item>
+        <n-form-item label="结束时间">
+          <n-time-picker
+            v-model:formatted-value="editTimeEnd"
+            format="HH:mm"
+            placeholder="结束时间"
+            style="width: 100%;"
+          />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showEditTimeModal = false">取消</n-button>
+          <n-button type="primary" :loading="editTimeLoading" @click="handleEditTime">确定</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </PageWrapper>
 </template>
 
@@ -146,6 +185,7 @@ import store, { load as storeLoad } from '@/store'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
 import type { FormInst } from 'naive-ui'
+import EditFilled from "@vicons/material/EditFilled"
 
 interface CellEntry {
   staffId: number
@@ -158,6 +198,7 @@ interface RoomData {
   name: string
   columns: CellEntry[][]
   weekdayIds: (number | null)[]
+  weekdayTimeLabels: string[]
   maxRows: number
 }
 
@@ -240,6 +281,11 @@ const roomsWithData = computed<RoomData[]>(() => {
   for (const [rid, { name, wds }] of roomMap) {
     const columns: CellEntry[][] = weekdayLabels.map(() => [])
     const weekdayIds: (number | null)[] = weekdayLabels.map(() => null)
+    const weekdayTimeLabels: string[] = weekdayLabels.map((wl) => {
+      const wd = wds.find(w => w.weekday === wl.key)
+      if (!wd) return '--'
+      return formatTimeRange(wd.start_time, wd.end_time)
+    })
     const seen = new Set<string>()
 
     for (const wd of wds) {
@@ -270,15 +316,16 @@ const roomsWithData = computed<RoomData[]>(() => {
 
     const maxRows = Math.max(...columns.map(c => c.length), 0)
 
-    result.push({ id: rid, name, columns, weekdayIds, maxRows })
+    result.push({ id: rid, name, columns, weekdayIds, weekdayTimeLabels, maxRows })
   }
 
   const knownIds = new Set(roomMap.keys())
   const emptyColumns = weekdayLabels.map(() => [] as CellEntry[])
   const emptyWeekdayIds = weekdayLabels.map(() => null)
+  const emptyLabels = weekdayLabels.map(() => '--' as string)
   for (const room of store.campusList) {
     if (!knownIds.has(room.id)) {
-      result.push({ id: room.id, name: room.name, columns: emptyColumns, weekdayIds: emptyWeekdayIds, maxRows: 0 })
+      result.push({ id: room.id, name: room.name, columns: emptyColumns, weekdayIds: emptyWeekdayIds, weekdayTimeLabels: emptyLabels, maxRows: 0 })
     }
   }
 
@@ -292,6 +339,23 @@ const formatDate = (iso: string) => {
   const d = new Date(iso)
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
 }
+
+const formatTimeFromISO = (iso: string): string => {
+  const m = iso.match(/T(\d{2}):(\d{2})/)
+  return m ? `${m[1]}:${m[2]}` : ''
+}
+
+const formatTimeRange = (start: string, end: string): string => {
+  return `${formatTimeFromISO(start)}-${formatTimeFromISO(end)}`
+}
+
+const showEditTimeModal = ref(false)
+const editTimeRoomId = ref(0)
+const editTimeWeekday = ref(0)
+const editTimeDayLabel = ref('')
+const editTimeStart = ref<string | null>(null)
+const editTimeEnd = ref<string | null>(null)
+const editTimeLoading = ref(false)
 
 const onSelect = (val: number | null) => {
   if (val) fetchDetail(val)
@@ -453,6 +517,46 @@ const isStaffInTargetColumn = (staffId: number): boolean => {
   const dayIdx = weekdayLabels.findIndex(wl => wl.key === addTargetWeekday.value)
   if (dayIdx === -1) return false
   return room.columns[dayIdx]?.some(e => e.staffId === staffId) ?? false
+}
+
+const openEditTimeModal = (roomId: number, weekday: number) => {
+  editTimeRoomId.value = roomId
+  editTimeWeekday.value = weekday
+  const day = weekdayLabels.find(wl => wl.key === weekday)
+  editTimeDayLabel.value = day?.label ?? ''
+  const wd = selectedSchedule.value?.weekdays?.find(
+    w => w.room_id === roomId && w.weekday === weekday
+  )
+  editTimeStart.value = wd ? formatTimeFromISO(wd.start_time) : null
+  editTimeEnd.value = wd ? formatTimeFromISO(wd.end_time) : null
+  showEditTimeModal.value = true
+}
+
+const handleEditTime = async () => {
+  if (!editTimeStart.value || !editTimeEnd.value) {
+    message.error('请选择开始和结束时间')
+    return
+  }
+  if (editTimeStart.value >= editTimeEnd.value) {
+    message.error('开始时间必须早于结束时间')
+    return
+  }
+  editTimeLoading.value = true
+  try {
+    await Api.put(`/api/admin/work-schedules/${selectedId.value}/weekdays`, {
+      room_id: editTimeRoomId.value,
+      weekday: editTimeWeekday.value,
+      start_time: editTimeStart.value,
+      end_time: editTimeEnd.value,
+    })
+    message.success('工作时间已更新')
+    showEditTimeModal.value = false
+    await fetchDetail(selectedId.value!)
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '更新失败')
+  } finally {
+    editTimeLoading.value = false
+  }
 }
 
 onMounted(async () => {
