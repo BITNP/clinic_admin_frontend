@@ -51,12 +51,26 @@
                 <tr v-for="rowIdx in room.maxRows" :key="rowIdx">
                   <td v-for="(day, dayIdx) in weekdayLabels" :key="day.key" style="text-align: center; vertical-align: middle;">
                     <template v-if="room.columns[dayIdx]?.[rowIdx - 1]">
-                      {{ room.columns[dayIdx][rowIdx - 1].staffName }}
+                      <n-space justify="center" align="center" :size="8">
+                        <span>{{ room.columns[dayIdx][rowIdx - 1].staffName }}</span>
+                        <n-button text type="error" size="tiny" @click="confirmRemove(room.columns[dayIdx][rowIdx - 1].staffId, room.weekdayIds[dayIdx]!)">
+                          删除
+                        </n-button>
+                      </n-space>
                     </template>
                     <span v-else style="color: var(--text-color-3);">&mdash;</span>
                   </td>
                 </tr>
               </tbody>
+              <tfoot>
+                <tr>
+                  <td v-for="(day, dayIdx) in weekdayLabels" :key="day.key" style="text-align: center;">
+                    <n-button size="small" @click="openAddModal(room.id, day.key)">
+                      添加
+                    </n-button>
+                  </td>
+                </tr>
+              </tfoot>
             </n-table>
           </n-card>
         </n-space>
@@ -101,6 +115,26 @@
         </n-space>
       </template>
     </n-modal>
+
+    <n-modal v-model:show="showAddModal" title="添加人员" preset="card" style="max-width: 400px;">
+      <n-space vertical :size="8">
+        <n-button
+          v-for="staff in validStaffList"
+          :key="staff.id"
+          :disabled="isStaffInTargetColumn(staff.id)"
+          block
+          @click="handleAddStaff(staff.id)"
+        >
+          {{ staff.realname || staff.account_id }}
+        </n-button>
+        <n-empty v-if="validStaffList.length === 0" description="无可用人员" />
+      </n-space>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showAddModal = false">取消</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </PageWrapper>
 </template>
 
@@ -123,6 +157,7 @@ interface RoomData {
   id: number
   name: string
   columns: CellEntry[][]
+  weekdayIds: (number | null)[]
   maxRows: number
 }
 
@@ -146,6 +181,10 @@ const loading = ref(false)
 const applying = ref(false)
 const creating = ref(false)
 const showCreateModal = ref(false)
+const validStaffList = ref<API.Staff[]>([])
+const showAddModal = ref(false)
+const addTargetRoomId = ref(0)
+const addTargetWeekday = ref(0)
 
 const createForm = reactive({
   name: '',
@@ -200,11 +239,15 @@ const roomsWithData = computed<RoomData[]>(() => {
   const result: RoomData[] = []
   for (const [rid, { name, wds }] of roomMap) {
     const columns: CellEntry[][] = weekdayLabels.map(() => [])
+    const weekdayIds: (number | null)[] = weekdayLabels.map(() => null)
     const seen = new Set<string>()
 
     for (const wd of wds) {
       const dayIdx = weekdayLabels.findIndex(wl => wl.key === wd.weekday)
       if (dayIdx === -1) continue
+      if (weekdayIds[dayIdx] === null) {
+        weekdayIds[dayIdx] = wd.id
+      }
       for (const s of wd.staff ?? []) {
         if (!s.staff) continue
         const key = `${dayIdx}-${s.staff_id}`
@@ -227,14 +270,15 @@ const roomsWithData = computed<RoomData[]>(() => {
 
     const maxRows = Math.max(...columns.map(c => c.length), 0)
 
-    result.push({ id: rid, name, columns, maxRows })
+    result.push({ id: rid, name, columns, weekdayIds, maxRows })
   }
 
   const knownIds = new Set(roomMap.keys())
   const emptyColumns = weekdayLabels.map(() => [] as CellEntry[])
+  const emptyWeekdayIds = weekdayLabels.map(() => null)
   for (const room of store.campusList) {
     if (!knownIds.has(room.id)) {
-      result.push({ id: room.id, name: room.name, columns: emptyColumns, maxRows: 0 })
+      result.push({ id: room.id, name: room.name, columns: emptyColumns, weekdayIds: emptyWeekdayIds, maxRows: 0 })
     }
   }
 
@@ -251,7 +295,10 @@ const formatDate = (iso: string) => {
 
 const onSelect = (val: number | null) => {
   if (val) fetchDetail(val)
-  else selectedSchedule.value = null
+  else {
+    selectedSchedule.value = null
+    validStaffList.value = []
+  }
 }
 
 const fetchList = async () => {
@@ -269,8 +316,12 @@ const fetchList = async () => {
 
 const fetchDetail = async (id: number) => {
   try {
-    const res = await Api.get<API.WorkSchedule>(`/api/admin/work-schedules/${id}`)
-    selectedSchedule.value = res.data
+    const [detailRes, validRes] = await Promise.all([
+      Api.get<API.WorkSchedule>(`/api/admin/work-schedules/${id}`),
+      Api.get<{ items: API.Staff[] }>(`/api/admin/work-schedules/${id}/valid-staff`),
+    ])
+    selectedSchedule.value = detailRes.data
+    validStaffList.value = validRes.data.items
   } catch (e) {
     console.error('Failed to load schedule detail', e)
     message.error('加载排班详情失败')
@@ -351,6 +402,57 @@ const handleApply = async () => {
   } finally {
     applying.value = false
   }
+}
+
+const confirmRemove = (staffId: number, weekdayId: number) => {
+  if (!selectedId.value) return
+  dialog.warning({
+    title: '确认删除',
+    content: '确定要移除该人员吗？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await Api.delete(`/api/admin/work-schedules/${selectedId.value}/staff`, {
+          data: { weekday_id: weekdayId, staff_id: staffId },
+        })
+        message.success('已移除')
+        await fetchDetail(selectedId.value!)
+      } catch (e: any) {
+        message.error(e.response?.data?.error || '移除失败')
+      }
+    },
+  })
+}
+
+const openAddModal = (roomId: number, weekday: number) => {
+  addTargetRoomId.value = roomId
+  addTargetWeekday.value = weekday
+  showAddModal.value = true
+}
+
+const handleAddStaff = async (staffId: number) => {
+  try {
+    await Api.post(`/api/admin/work-schedules/${selectedId.value}/staff`, {
+      room_id: addTargetRoomId.value,
+      weekday: addTargetWeekday.value,
+      staff_id: staffId,
+    })
+    message.success('已添加')
+    showAddModal.value = false
+    await fetchDetail(selectedId.value!)
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '添加失败')
+  }
+}
+
+const isStaffInTargetColumn = (staffId: number): boolean => {
+  if (!selectedSchedule.value || !addTargetRoomId.value) return false
+  const room = roomsWithData.value.find(r => r.id === addTargetRoomId.value)
+  if (!room) return false
+  const dayIdx = weekdayLabels.findIndex(wl => wl.key === addTargetWeekday.value)
+  if (dayIdx === -1) return false
+  return room.columns[dayIdx]?.some(e => e.staffId === staffId) ?? false
 }
 
 onMounted(async () => {
