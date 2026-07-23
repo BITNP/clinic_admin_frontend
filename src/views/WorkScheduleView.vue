@@ -28,9 +28,16 @@
 
       <template v-if="selectedSchedule">
         <n-space vertical :size="4">
-          <n-text depth="text">
-            <strong>排班名称:</strong> {{ selectedSchedule.name }}
-          </n-text>
+          <n-space align="center" :size="8">
+            <n-text depth="text">
+              <strong>排班名称:</strong> {{ selectedSchedule.name }}
+            </n-text>
+            <n-button text size="small" @click="openEditModal" title="编辑排班信息">
+              <template #icon>
+                <n-icon><EditFilled /></n-icon>
+              </template>
+            </n-button>
+          </n-space>
           <n-text depth="text">
             <strong>有效期:</strong> {{ formatDate(selectedSchedule.start_date) }} ~ {{ formatDate(selectedSchedule.end_date) }}
           </n-text>
@@ -124,6 +131,38 @@
         <n-space justify="end">
           <n-button @click="showCreateModal = false">取消</n-button>
           <n-button type="primary" :loading="creating" @click="handleCreate">创建</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="showEditModal" title="编辑排班" preset="card" style="max-width: 480px;">
+      <n-form :model="editForm" ref="editFormRef" :rules="editRules">
+        <n-form-item label="排班名称" path="name">
+          <n-input v-model:value="editForm.name" placeholder="例如: 2026 秋季" />
+        </n-form-item>
+        <n-form-item label="开始日期" path="startDate">
+          <n-date-picker
+            :formatted-value="editForm.startDate"
+            @update:formatted-value="(v: any) => { editForm.startDate = v as string | null }"
+            value-format="yyyy-MM-dd"
+            type="date"
+            style="width: 100%;"
+          />
+        </n-form-item>
+        <n-form-item label="结束日期" path="endDate">
+          <n-date-picker
+            :formatted-value="editForm.endDate"
+            @update:formatted-value="(v: any) => { editForm.endDate = v as string | null }"
+            value-format="yyyy-MM-dd"
+            type="date"
+            style="width: 100%;"
+          />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showEditModal = false">取消</n-button>
+          <n-button type="primary" :loading="editLoading" @click="handleEditSubmit">保存</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -233,6 +272,36 @@ const createForm = reactive({
   endDate: null as string | null,
 })
 const createFormRef = ref<FormInst | null>(null)
+const showEditModal = ref(false)
+const editLoading = ref(false)
+const editForm = reactive({
+  name: '',
+  startDate: null as string | null,
+  endDate: null as string | null,
+})
+const editFormRef = ref<FormInst | null>(null)
+
+const editRules = {
+  name: {
+    required: true,
+    message: '请输入排班名称',
+    trigger: ['blur'],
+  },
+  startDate: {
+    trigger: ['change'],
+    validator: (rule: any, value: any) => {
+      if (!value) return new Error('请选择开始日期')
+      return true
+    },
+  },
+  endDate: {
+    trigger: ['change'],
+    validator: (rule: any, value: any) => {
+      if (!value) return new Error('请选择结束日期')
+      return true
+    },
+  },
+}
 
 const createRules = {
   name: {
@@ -448,6 +517,47 @@ const handleDelete = () => {
       }
     },
   })
+}
+
+const openEditModal = () => {
+  if (!selectedSchedule.value) return
+  editForm.name = selectedSchedule.value.name
+  editForm.startDate = formatDate(selectedSchedule.value.start_date)
+  editForm.endDate = formatDate(selectedSchedule.value.end_date)
+  editFormRef.value?.restoreValidation()
+  showEditModal.value = true
+}
+
+const handleEditSubmit = async () => {
+  try {
+    await editFormRef.value?.validate()
+  } catch {
+    return
+  }
+  if (!editForm.startDate || !editForm.endDate) return
+  if (editForm.startDate > editForm.endDate) {
+    message.error('开始日期不能晚于结束日期')
+    return
+  }
+  editLoading.value = true
+  try {
+    await Api.put(`/api/admin/work-schedules/${selectedId.value}`, {
+      name: editForm.name,
+      start_date: editForm.startDate,
+      end_date: editForm.endDate,
+    })
+    message.success('排班已更新')
+    showEditModal.value = false
+    await fetchList()
+    if (selectedId.value) await fetchDetail(selectedId.value)
+  } catch (e: any) {
+    const errMsg = e.response?.status === 404
+      ? '后端接口不存在，请重启后端'
+      : e.response?.data?.error || e.message || '更新失败'
+    message.error(errMsg)
+  } finally {
+    editLoading.value = false
+  }
 }
 
 const handleApply = async () => {
