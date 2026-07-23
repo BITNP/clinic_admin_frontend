@@ -76,7 +76,7 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td v-for="(day, dayIdx) in weekdayLabels" :key="day.key" style="text-align: center;">
+                    <td v-for="day in weekdayLabels" :key="day.key" style="text-align: center;">
                     <n-button size="small" @click="openAddModal(room.id, day.key)">
                       添加
                     </n-button>
@@ -452,19 +452,54 @@ const handleDelete = () => {
 
 const handleApply = async () => {
   if (!selectedId.value) return
-  applying.value = true
-  try {
-    await Api.put(`/api/admin/work-schedules/${selectedId.value}`, { enabled: true })
-    message.success('已启用该排班')
-    await fetchList()
-    await fetchDetail(selectedId.value)
-  } catch (e: any) {
-    const errMsg = e.response?.status === 404
-      ? '后端接口不存在，请重启后端'
-      : e.response?.data?.error || e.message || '启用失败'
-    message.error(errMsg)
-  } finally {
-    applying.value = false
+  const currentEnabled = scheduleList.value.find(
+    s => s.enabled && s.id !== selectedId.value
+  )
+
+  const doApply = async () => {
+    applying.value = true
+    let disabledPrevious = false
+    const previousId = currentEnabled?.id ?? null
+    try {
+      if (currentEnabled) {
+        await Api.put(`/api/admin/work-schedules/${currentEnabled.id}`, { enabled: false })
+        disabledPrevious = true
+      }
+      await Api.put(`/api/admin/work-schedules/${selectedId.value}`, { enabled: true })
+      message.success('已启用该排班')
+      await fetchList()
+      await fetchDetail(selectedId.value!)
+    } catch (e: any) {
+      if (e.response?.status === 404) {
+        message.error('后端接口不存在，请重启后端')
+        return
+      }
+      if (disabledPrevious && previousId) {
+        try {
+          await Api.put(`/api/admin/work-schedules/${previousId}`, { enabled: true })
+          await fetchList()
+          message.info('已恢复之前的排班')
+        } catch {
+          message.error('切换失败，且无法自动恢复之前的排班，请手动检查')
+        }
+      } else {
+        message.error(e.response?.data?.error || e.message || '启用失败')
+      }
+    } finally {
+      applying.value = false
+    }
+  }
+
+  if (currentEnabled) {
+    dialog.warning({
+      title: '确认切换排班',
+      content: `启用排班「${selectedSchedule.value?.name}」将关闭当前排班「${currentEnabled.name}」，是否继续？`,
+      positiveText: '确定',
+      negativeText: '取消',
+      onPositiveClick: doApply,
+    })
+  } else {
+    await doApply()
   }
 }
 
