@@ -1,31 +1,22 @@
 <template>
   <PageWrapper title="服务时间管理">
     <div v-if="Object.keys(dateGroup.groups).length > 0">
-      <n-tabs animated>
-        <n-tab-pane v-for="(items, date) in dateGroup.groups" :name="date" :tab="date" :key="date">
-          <n-grid cols="1 600:2" :x-gap="8" :y-gap="8">
-            <n-grid-item v-for="item in items" :key="item.id">
-              <n-card>
-                <n-thing :title="roomName(item.room_id)" :title-extra="item.title"
-                  :description="`${formatTime(item.startTime)} - ${formatTime(item.endTime)}`">
-                  <n-space justify="space-between">
-                    <n-space>
-                      <n-button size="small" secondary>
-                        {{ `容量 ${item.count}/${item.capacity}` }}
-                      </n-button>
-                    </n-space>
-                    <n-dropdown trigger="hover" :options="options" @select="(key: string) => handleSelect(key, item)">
-                      <n-button size="small">
-                        操作
-                      </n-button>
-                    </n-dropdown>
-                  </n-space>
-                </n-thing>
-              </n-card>
-            </n-grid-item>
-          </n-grid>
-        </n-tab-pane>
-      </n-tabs>
+      <div v-for="date in sortedDateKeys" :key="date" class="date-section">
+        <div class="date-header">
+          {{ date }}<span class="weekday">{{ formatWeekday(date) }}</span>
+        </div>
+        <div class="schedule-list">
+          <div v-for="item in dateGroup.groups[date]" :key="item.id" class="schedule-row">
+            <span class="room-name">{{ roomName(item.room_id) }}</span>
+            <span class="service-info">{{ item.title }}<span class="time">{{ formatTime(item.startTime) }} - {{ formatTime(item.endTime) }}</span></span>
+            <span class="count">{{ item.count }}/{{ item.capacity }}</span>
+            <span class="actions">
+              <n-button size="small" @click="handleEdit(item)">编辑服务</n-button>
+              <n-button size="small" @click="handleDelete(item)">删除</n-button>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
     <n-empty v-else />
   </PageWrapper>
@@ -44,13 +35,10 @@
 import Api from '@/utils/Api';
 import type API from "@/store/api";
 import store, { load } from "@/store";
-import { onMounted, reactive, h } from 'vue';
-import type { Component } from 'vue';
-import { NIcon, useDialog, useMessage } from 'naive-ui';
+import { onMounted, reactive, computed } from 'vue';
+import { useDialog, useMessage } from 'naive-ui';
 import PlaylistAddFilled from '@vicons/material/PlaylistAddFilled';
 import { useRouter } from 'vue-router';
-import EditFilled from '@vicons/material/EditFilled';
-import DeleteFilled from '@vicons/material/DeleteFilled';
 import PageWrapper from '@/components/PageWrapper.vue';
 
 const router = useRouter();
@@ -58,6 +46,12 @@ const router = useRouter();
 const dateGroup = reactive({
   groups: {} as { [k: string]: API.ServiceDate[] }
 });
+
+const sortedDateKeys = computed(() => {
+  return Object.keys(dateGroup.groups).sort()
+})
+
+const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 const formatTime = (iso: string) => {
   const d = new Date(iso)
@@ -67,6 +61,11 @@ const formatTime = (iso: string) => {
 const formatDate = (iso: string) => {
   const d = new Date(iso)
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+}
+
+const formatWeekday = (iso: string) => {
+  const d = new Date(iso)
+  return weekdays[d.getDay()]
 }
 
 const roomName = (roomId: number) => {
@@ -89,48 +88,88 @@ onMounted(async () => {
     }
     dateGroup.groups[date].push(item);
   });
+
+  Object.values(dateGroup.groups).forEach(items => {
+    items.sort((a, b) => a.startTime.localeCompare(b.startTime))
+  })
 })
-
-const renderIcon = (icon: Component) => {
-  return () => {
-    return h(NIcon, null, {
-      default: () => h(icon)
-    })
-  }
-}
-
-const options = [
-  {
-    label: "编辑",
-    key: "edit",
-    icon: renderIcon(EditFilled)
-  },
-  {
-    label: "删除",
-    key: "delete",
-    icon: renderIcon(DeleteFilled)
-  }
-]
 
 const dialog = useDialog();
 const message = useMessage();
 
-const handleSelect = (key: string, item: API.ServiceDate) => {
-  if (key === "delete") {
-    dialog.warning({
-      title: '警告',
-      content: '确定删除吗？',
-      positiveText: '确定',
-      negativeText: '不确定',
-      onPositiveClick: async () => {
-        await Api.delete(`/api/admin/service-dates/${item.id}`);
-        message.success('已删除')
-      },
-      onNegativeClick: () => { }
-    })
-  }
-  if (key === "edit") {
-    router.push(`/schedule/${item.id}`);
-  }
+const handleEdit = (item: API.ServiceDate) => {
+  router.push(`/schedule/${item.id}`)
+}
+
+const handleDelete = (item: API.ServiceDate) => {
+  dialog.warning({
+    title: '警告',
+    content: '确定删除吗？',
+    positiveText: '确定',
+    negativeText: '不确定',
+    onPositiveClick: async () => {
+      await Api.delete(`/api/admin/service-dates/${item.id}`);
+      message.success('已删除')
+    },
+    onNegativeClick: () => { }
+  })
 }
 </script>
+
+<style scoped>
+.date-section {
+  margin-bottom: 24px;
+}
+.date-header {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+}
+.weekday {
+  font-weight: 400;
+  color: #888;
+  margin-left: 6px;
+}
+.schedule-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 16px;
+}
+.schedule-row::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: #e0e0e0;
+}
+.schedule-row:last-child::after {
+  display: none;
+}
+.room-name {
+  flex: 0 0 120px;
+  font-weight: 500;
+}
+.service-info {
+  flex: 1;
+}
+.time {
+  color: #888;
+  font-size: 0.9em;
+  margin-left: 8px;
+}
+.count {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+</style>
