@@ -8,6 +8,7 @@
           placeholder="选择排班"
           clearable
           style="min-width: 240px;"
+          :disabled="showPrintModal"
           @update:value="onSelect"
         />
         <n-button @click="showCreateModal = true">
@@ -23,8 +24,11 @@
           @click="handleApply"
         >
           应用
-        </n-button>
-      </n-space>
+         </n-button>
+         <n-button :disabled="!selectedId || showPrintModal" @click="openPrintModal">
+           打印
+         </n-button>
+       </n-space>
 
       <template v-if="selectedSchedule">
         <n-space vertical :size="4">
@@ -213,6 +217,90 @@
         </n-space>
       </template>
     </n-modal>
+
+    <n-modal v-model:show="showPrintModal" title="打印排班" preset="card" style="max-width: 600px;">
+      <n-space vertical :size="16">
+        <n-form-item label="标题">
+          <n-input v-model:value="printHeader" placeholder="请输入表头" />
+        </n-form-item>
+        <n-h3>选择校区</n-h3>
+        <n-space wrap>
+          <template v-if="roomsWithData.length">
+            <n-button
+              v-for="room in roomsWithData"
+              :key="room.id"
+              :type="selectedPrintRoomIds.includes(room.id) ? 'success' : 'default'"
+              :style="{ height: '56px', '--n-border-radius': '0px', padding: '0 16px' }"
+              @click="togglePrintRoom(room.id)"
+            >
+              {{ room.name }}
+            </n-button>
+          </template>
+          <n-text v-else depth="3">暂无校区</n-text>
+        </n-space>
+        <n-h3>选择星期</n-h3>
+        <n-space>
+          <n-button
+            v-for="(day, idx) in weekdayLabels"
+            :key="idx"
+            :type="selectedPrintWeekdayKeys.includes(day.key) ? 'success' : 'default'"
+            :style="{ width: '56px', height: '56px', '--n-border-radius': '0px' }"
+            @click="togglePrintWeekday(day.key)"
+          >
+            {{ day.label }}
+          </n-button>
+        </n-space>
+      </n-space>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showPrintModal = false">取消</n-button>
+          <n-button type="primary" :loading="printLoading" @click="handlePrint">打印</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <div
+      ref="printContainerRef"
+      style="position: fixed; left: -9999px; top: -9999px; width: 1200px; background: #fff; padding: 40px; color: #000;"
+    >
+      <n-config-provider :theme="lightTheme">
+        <div style="text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 8px;">{{ printHeader }}</div>
+        <div style="text-align: center; font-size: 14px; margin-bottom: 24px;">
+          有效期: {{ selectedSchedule ? formatDate(selectedSchedule.start_date) : '' }} ~ {{ selectedSchedule ? formatDate(selectedSchedule.end_date) : '' }}
+        </div>
+        <n-space vertical :size="20">
+          <n-card
+            v-for="room in filteredPrintRooms"
+            :key="room.id"
+            :title="room.name"
+            embedded
+          >
+          <n-table :bordered="false" :single-line="false">
+            <thead>
+              <tr>
+                <th v-for="(day, dayIdx) in room.selectedDayLabels" :key="day.key" style="text-align: center;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span>{{ day.label }}</span>
+                    <span style="font-size: 12px;">{{ room.weekdayTimeLabels[dayIdx] }}</span>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="rowIdx in room.maxRows" :key="rowIdx">
+                <td v-for="(day, dayIdx) in room.selectedDayLabels" :key="day.key" style="text-align: center; vertical-align: middle;">
+                  <template v-if="room.columns[dayIdx]?.[rowIdx - 1]">
+                    <span>{{ room.columns[dayIdx][rowIdx - 1].staffName }}</span>
+                  </template>
+                  <span v-else style="color: var(--text-color-3);">&mdash;</span>
+                </td>
+              </tr>
+            </tbody>
+          </n-table>
+        </n-card>
+      </n-space>
+    </n-config-provider>
+    </div>
   </PageWrapper>
 </template>
 
@@ -221,10 +309,11 @@ import PageWrapper from '@/components/PageWrapper.vue'
 import Api from '@/utils/Api'
 import type API from '@/store/api'
 import store, { load as storeLoad } from '@/store'
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useMessage, useDialog } from 'naive-ui'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { useMessage, useDialog, lightTheme } from 'naive-ui'
 import type { FormInst } from 'naive-ui'
 import EditFilled from "@vicons/material/EditFilled"
+import { toPng } from 'html-to-image'
 
 interface CellEntry {
   staffId: number
@@ -265,6 +354,12 @@ const validStaffList = ref<API.Staff[]>([])
 const showAddModal = ref(false)
 const addTargetRoomId = ref(0)
 const addTargetWeekday = ref(0)
+const showPrintModal = ref(false)
+const printHeader = ref('')
+const selectedPrintRoomIds = ref<number[]>([])
+const selectedPrintWeekdayKeys = ref<number[]>([])
+const printLoading = ref(false)
+const printContainerRef = ref<HTMLElement | null>(null)
 
 const createForm = reactive({
   name: '',
@@ -401,6 +496,43 @@ const roomsWithData = computed<RoomData[]>(() => {
   result.sort((a, b) => a.name.localeCompare(b.name))
 
   return result
+})
+
+interface PrintRoomData {
+  id: number
+  name: string
+  columns: CellEntry[][]
+  weekdayIds: (number | null)[]
+  weekdayTimeLabels: string[]
+  maxRows: number
+  selectedDayLabels: { key: number; label: string }[]
+}
+
+const filteredPrintRooms = computed<PrintRoomData[]>(() => {
+  const selectedRoomIdsSet = new Set(selectedPrintRoomIds.value)
+  const selectedWeekdayKeySet = new Set(selectedPrintWeekdayKeys.value)
+  const selectedIndices = weekdayLabels
+    .map((wl, idx) => ({ ...wl, idx }))
+    .filter(wl => selectedWeekdayKeySet.has(wl.key))
+  return roomsWithData.value
+    .filter(room => selectedRoomIdsSet.has(room.id))
+    .map(room => {
+      const columns: CellEntry[][] = []
+      const weekdayIds: (number | null)[] = []
+      const weekdayTimeLabels: string[] = []
+      const selectedDayLabels: { key: number; label: string }[] = []
+      let maxRows = 0
+      for (const wl of selectedIndices) {
+        columns.push(room.columns[wl.idx] ?? [])
+        weekdayIds.push(room.weekdayIds[wl.idx] ?? null)
+        weekdayTimeLabels.push(room.weekdayTimeLabels[wl.idx] ?? '--')
+        selectedDayLabels.push({ key: wl.key, label: wl.label })
+        if (columns[columns.length - 1].length > maxRows) {
+          maxRows = columns[columns.length - 1].length
+        }
+      }
+      return { id: room.id, name: room.name, columns, weekdayIds, weekdayTimeLabels, maxRows, selectedDayLabels }
+    })
 })
 
 const formatDate = (iso: string) => {
@@ -701,6 +833,72 @@ const handleEditTime = async () => {
     message.error(e.response?.data?.error || '更新失败')
   } finally {
     editTimeLoading.value = false
+  }
+}
+
+const openPrintModal = () => {
+  printHeader.value = selectedSchedule.value?.name ?? ''
+  selectedPrintRoomIds.value = roomsWithData.value.map(r => r.id)
+  selectedPrintWeekdayKeys.value = [1, 2, 3, 4, 5, 6, 0]
+  printLoading.value = false
+  showPrintModal.value = true
+}
+
+const togglePrintRoom = (id: number) => {
+  const idx = selectedPrintRoomIds.value.indexOf(id)
+  if (idx >= 0) {
+    selectedPrintRoomIds.value.splice(idx, 1)
+  } else {
+    selectedPrintRoomIds.value.push(id)
+  }
+}
+
+const togglePrintWeekday = (key: number) => {
+  const idx = selectedPrintWeekdayKeys.value.indexOf(key)
+  if (idx >= 0) {
+    selectedPrintWeekdayKeys.value.splice(idx, 1)
+  } else {
+    selectedPrintWeekdayKeys.value.push(key)
+  }
+}
+
+const handlePrint = async () => {
+  if (selectedPrintRoomIds.value.length === 0) {
+    message.warning('请至少选择一个校区')
+    return
+  }
+  if (selectedPrintWeekdayKeys.value.length === 0) {
+    message.warning('请至少选择一个星期')
+    return
+  }
+  if (!printContainerRef.value) return
+  printLoading.value = true
+  await nextTick()
+  try {
+    await document.fonts.ready
+    const el = printContainerRef.value
+    const dataUrl = await toPng(el, {
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      style: {
+        position: 'static',
+        top: '0',
+        left: '0',
+        zIndex: 'auto',
+        margin: '0',
+      },
+    })
+    const link = document.createElement('a')
+    link.download = `${printHeader.value || '排班'}.png`
+    link.href = dataUrl
+    link.click()
+  } catch (e: any) {
+    console.error('Failed to generate print image', e)
+    message.error('打印图片生成失败')
+  } finally {
+    printLoading.value = false
   }
 }
 
