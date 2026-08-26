@@ -1,0 +1,7 @@
+:80 {
+	root * /srv
+	file_server
+
+	@backend path /api* /login* /logout*
+	reverse_proxy @backend {$BACKEND_UPSTREAM:http://backend:8080}
+}

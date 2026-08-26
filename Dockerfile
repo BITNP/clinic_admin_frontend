@@ -11,6 +11,7 @@ RUN corepack enable pnpm && pnpm config set registry https://registry.npmmirror.
 FROM caddy:2.9-alpine
 
 COPY --from=build /dist /srv
+COPY Caddyfile /etc/caddy/Caddyfile
 
 EXPOSE 80
 EXPOSE 443
