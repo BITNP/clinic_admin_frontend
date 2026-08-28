@@ -1,0 +1,11 @@
+.git
+.gitignore
+.idea
+.vscode
+.env
+.env.example
+node_modules
+dist
+Dockerfile
+docker-compose.yml
+*.tsbuildinfo
