@@ -586,7 +586,7 @@ const fetchDetail = async (id: number) => {
       Api.get<{ items: API.Staff[] }>(`/api/admin/work-schedules/${id}/valid-staff`),
     ])
     selectedSchedule.value = detailRes.data
-    validStaffList.value = validRes.data.items
+    validStaffList.value = validRes.data.items ?? []
   } catch (e) {
     console.error('Failed to load schedule detail', e)
     message.error('加载排班详情失败')
