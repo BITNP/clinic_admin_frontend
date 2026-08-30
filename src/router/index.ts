@@ -10,6 +10,10 @@ const router = createRouter({
       component: HomeView
     },
     {
+      path: '/records',
+      redirect: '/'
+    },
+    {
       path: '/records/:recordId',
       name: "records",
       props: true,

@@ -1,8 +1,13 @@
 :80 {
 	root * /srv
-	try_files {path} /index.html
-	file_server
 
 	@backend path /api* /login* /logout*
-	reverse_proxy @backend {$BACKEND_UPSTREAM:http://backend:8080}
+	handle @backend {
+		reverse_proxy {$BACKEND_UPSTREAM:http://backend:8080}
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
 }
