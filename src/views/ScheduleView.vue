@@ -155,9 +155,10 @@ const handleDelete = (item: API.ServiceDate) => {
 .schedule-row {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   padding: 10px 16px;
-  gap: 16px;
+  gap: 8px 12px;
 }
 .schedule-row::after {
   content: '';
@@ -172,11 +173,14 @@ const handleDelete = (item: API.ServiceDate) => {
   display: none;
 }
 .room-name {
-  flex: 0 0 120px;
+  flex: 0 1 auto;
+  min-width: 90px;
   font-weight: 500;
 }
 .service-info {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .time {
   color: #888;
@@ -190,6 +194,13 @@ const handleDelete = (item: API.ServiceDate) => {
 .actions {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-left: auto;
+}
+@media screen and (max-width: 600px) {
+  .room-name {
+    flex-basis: 100%;
+  }
 }
 </style>
