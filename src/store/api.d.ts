@@ -27,7 +27,7 @@ namespace API {
     id: number
     account_id: string
     realname: string
-    phone_num: string
+    email: string
     role: string
   }
 
@@ -112,7 +112,7 @@ namespace API {
     id: number
     account_id: string
     realname: string
-    phone_num: string
+    email: string
     role: string
     handled_count: number
     work_years: number[]

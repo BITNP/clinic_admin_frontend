@@ -84,7 +84,7 @@ const loadRecord = async () => {
       id: 0,
       account_id: record.value.user,
       realname: record.value.realname,
-      phone_num: record.value.phone_num,
+      email: "",
       role: ""
     }
   }

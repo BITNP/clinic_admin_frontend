@@ -4,7 +4,7 @@
       <n-space :align="'center'">
         <n-input
           v-model:value="searchName"
-          placeholder="搜索姓名"
+          placeholder="搜索用户名/姓名"
           clearable
           style="max-width: 240px;"
         />
@@ -39,6 +39,7 @@ import type { DataTableColumn } from 'naive-ui'
 
 interface StaffRow {
   id: number
+  用户名: string
   姓名: string
   权限: string
   值班日: string
@@ -51,6 +52,12 @@ const searchName = ref('')
 const activeFilter = ref('')
 
 const columns: DataTableColumn<StaffRow>[] = [
+  {
+    title: '用户名',
+    key: '用户名',
+    sorter: (a, b) => a.用户名.localeCompare(b.用户名),
+    width: 150,
+  },
   {
     title: '姓名',
     key: '姓名',
@@ -87,13 +94,14 @@ const displayData = computed<StaffRow[]>(() => {
   const filter = activeFilter.value.trim().toLowerCase()
   const list = filter
     ? rawData.value.filter(s => {
-      const name = (s.realname || s.account_id).toLowerCase()
+      const name = `${s.account_id} ${s.realname ?? ''}`.toLowerCase()
       return name.includes(filter)
     })
     : rawData.value
   return list.map(s => ({
     id: s.id,
-    姓名: s.realname || s.account_id,
+    用户名: s.account_id,
+    姓名: s.realname || '—',
     权限: s.role || '—',
     值班日: '—',
     处理单量: s.handled_count != null ? String(s.handled_count) : '—',

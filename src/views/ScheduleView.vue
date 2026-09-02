@@ -20,22 +20,22 @@
     </div>
     <n-empty v-else />
   </PageWrapper>
-  <n-float-button :right="16" :bottom="96" type="primary" :width="144" :height="56"
+  <n-float-button :right="16" :bottom="96" type="primary" class="float-action"
     @click="() => router.push('/schedule/next-week')">
-    <div style="display: flex; gap: 8px; flex-direction: row; align-items: center; justify-content: center; ">
+    <div class="float-action-inner">
       <n-icon :size="24">
         <PlaylistAddFilled />
       </n-icon>
-      <span style="font-size: 0.8rem;">生成下周时间</span>
+      <span>生成下周时间</span>
     </div>
   </n-float-button>
-  <n-float-button :right="16" :bottom="24" type="primary" :width="144" :height="56"
+  <n-float-button :right="16" :bottom="24" type="primary" class="float-action"
     @click="() => router.push('/schedule/add')">
-    <div style="display: flex; gap: 8px; flex-direction: row; align-items: center; justify-content: center; ">
+    <div class="float-action-inner">
       <n-icon :size="24">
         <PlaylistAddFilled />
       </n-icon>
-      <span style="font-size: 0.8rem;">新建服务时间</span>
+      <span>新建服务时间</span>
     </div>
   </n-float-button>
 </template>
@@ -198,9 +198,34 @@ const handleDelete = (item: API.ServiceDate) => {
   gap: 8px;
   margin-left: auto;
 }
+.float-action {
+  width: 144px;
+  height: 56px;
+}
+.float-action-inner {
+  display: flex;
+  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.float-action-inner span {
+  font-size: 0.8rem;
+}
 @media screen and (max-width: 600px) {
   .room-name {
     flex-basis: 100%;
+  }
+  .float-action {
+    width: fit-content;
+    height: 48px;
+    padding: 0 16px;
+    max-width: calc(100vw - 32px);
+    overflow: hidden;
+  }
+  .float-action-inner span {
+    font-size: 0.75rem;
   }
 }
 </style>
