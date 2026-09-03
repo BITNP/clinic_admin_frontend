@@ -40,8 +40,9 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import store, { load } from "@/store";
+import type API from "@/store/api";
 import type { FormInst } from "naive-ui";
 import { useRouter } from 'vue-router';
 import Api from "@/utils/Api";
@@ -69,19 +70,20 @@ const toDateStr = (dateMs: number) => {
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
 }
 
-const datesUnavailable = computed(() => store.dateList.reduce((acc, date) => {
-  const key = date.room_id
-  if (!acc.has(key)) {
-    acc.set(key, [])
+const unavailableDates = ref<string[]>([])
+
+const fetchUnavailableDates = async (roomId: number) => {
+  try {
+    const res = await Api.get<{ items: API.ServiceDate[] }>(`/api/admin/service-dates?room_ids=${roomId}&pageSize=1000`)
+    if (roomId !== formValue.room_id) return
+    unavailableDates.value = res.data.items.map((d) => d.date.slice(0, 10))
+  } catch (e) {
+    console.error('加载已占用日期失败', e)
   }
-  acc.get(key)?.push(date.date.slice(0, 10))
-  return acc
-}, new Map<number, string[]>()))
+}
 
 const isDateDisabled = (current: number) => {
-  const key = toDateStr(current)
-  return datesUnavailable.value.has(formValue.room_id!) &&
-    datesUnavailable.value.get(formValue.room_id!)?.includes(key)
+  return unavailableDates.value.includes(toDateStr(current))
 }
 
 const campuses = computed(() => store.campusList.map((item) => {
@@ -108,6 +110,14 @@ const formValue = reactive({
     dateList: undefined as [number, number] | undefined,
   }
 })
+
+watch(() => formValue.room_id, (roomId) => {
+  if (roomId !== null) {
+    fetchUnavailableDates(roomId)
+  } else {
+    unavailableDates.value = []
+  }
+}, { immediate: true })
 
 const formRule = {
   title: { required: true, message: "请输入服务描述", trigger: ["blur"] },
@@ -196,6 +206,9 @@ const handleSubmit = async () => {
       return Api.post('/api/admin/service-dates', s)
     }))
     message.success("提交成功啦")
+    if (formValue.room_id !== null) {
+      fetchUnavailableDates(formValue.room_id)
+    }
   } catch (e) {
     message.error("提交失败")
   } finally {

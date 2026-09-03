@@ -24,7 +24,6 @@ const store = reactive({
     }[]
   },
   campusList: [] as API.Room[],
-  dateList: [] as API.ServiceDate[],
   repairMethods: [] as API.RecordDesc[],
   probDescs: [] as API.RecordDesc[],
   history: new Map<API.Record['id'], API.Record[]>(),
@@ -36,9 +35,6 @@ const load = async () => {
 
   const campusRes = await Api.get<ListResponse<API.Room>>('/api/admin/rooms')
   store.campusList = campusRes.data.items
-
-  const datesRes = await Api.get<ListResponse<API.ServiceDate>>('/api/admin/service-dates')
-  store.dateList = datesRes.data.items
 
   const announcementRes = await Api.get<ListResponse<API.IAnnouncement>>('/api/admin/announcements')
   store.announcementList = announcementRes.data.items

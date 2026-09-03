@@ -89,7 +89,6 @@ onMounted(async () => {
   }
 
   const res = await Api.get<{ items: API.ServiceDate[]; total: number; page: number; pageSize: number }>('/api/admin/service-dates');
-  store.dateList = res.data.items;
 
   res.data.items.forEach((item) => {
     const date = formatDate(item.date);

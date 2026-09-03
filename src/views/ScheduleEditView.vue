@@ -31,7 +31,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import store, { load } from "@/store";
 import type API from "@/store/api";
 import type { FormInst } from "naive-ui";
@@ -66,21 +66,23 @@ const toDateStr = (dateMs: number) => {
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
 }
 
-const datesUnavailable = computed(() => store.dateList.reduce((acc, date) => {
-  const key = date.room_id
-  if (!acc.has(key)) {
-    acc.set(key, [])
+const unavailableDates = ref<string[]>([])
+
+const fetchUnavailableDates = async (roomId: number) => {
+  try {
+    const res = await Api.get<{ items: API.ServiceDate[] }>(`/api/admin/service-dates/all?room_ids=${roomId}&pageSize=1000`)
+    if (roomId !== formValue.room_id) return
+    unavailableDates.value = res.data.items.map((d) => d.date.slice(0, 10))
+  } catch (e) {
+    console.error('加载已占用日期失败', e)
   }
-  acc.get(key)?.push(toDateStr(new Date(date.date).getTime()))
-  return acc
-}, new Map<number, string[]>()))
+}
 
 const isDateDisabled = (current: number) => {
   if (!formValue) return false
   const key = toDateStr(current)
   return key !== toDateStr(originalValue.date) &&
-    datesUnavailable.value.has(formValue.room_id!) &&
-    datesUnavailable.value.get(formValue.room_id!)?.includes(key)
+    unavailableDates.value.includes(key)
 }
 
 const campuses = computed(() => store.campusList.map((item) => {
@@ -108,6 +110,12 @@ let originalValue: EditForm = {
   date: 0,
 }
 const formValue = reactive<EditForm>(originalValue);
+
+watch(() => formValue.room_id, (roomId) => {
+  if (roomId !== null) {
+    fetchUnavailableDates(roomId)
+  }
+}, { immediate: true })
 
 const formRule = {
   title: { required: true, message: "请输入服务描述", trigger: ["blur"] },
@@ -140,24 +148,19 @@ onMounted(async () => {
   }
   await Auth.auth();
 
-  let target = store.dateList.find(d => d.id === parseInt(props.dateId))
-  if (!target) {
-    const res = await Api.get<API.ServiceDate>(`/api/admin/service-dates/${props.dateId}`)
-    target = res.data
-  }
+  const res = await Api.get<API.ServiceDate>(`/api/admin/service-dates/${props.dateId}`)
+  const target = res.data
 
-  if (target) {
-    currentCount.value = target.count
-    Object.assign(formValue, {
-      title: target.title,
-      room_id: target.room_id,
-      capacity: target.capacity,
-      startTime: new Date(target.startTime).getTime(),
-      endTime: new Date(target.endTime).getTime(),
-      date: new Date(target.date).getTime(),
-    })
-    originalValue = { ...formValue }
-  }
+  currentCount.value = target.count
+  Object.assign(formValue, {
+    title: target.title,
+    room_id: target.room_id,
+    capacity: target.capacity,
+    startTime: new Date(target.startTime).getTime(),
+    endTime: new Date(target.endTime).getTime(),
+    date: new Date(target.date).getTime(),
+  })
+  originalValue = { ...formValue }
 })
 
 const handleSubmit = async () => {
@@ -183,6 +186,9 @@ const handleSubmit = async () => {
     loading.value = true
     await Api.put(`/api/admin/service-dates/${props.dateId}`, payload)
     message.success("提交成功啦")
+    if (formValue.room_id !== null) {
+      fetchUnavailableDates(formValue.room_id)
+    }
   } catch (e: any) {
     console.error('submit failed:', e)
     message.error(e.response?.data?.error || "提交失败")
