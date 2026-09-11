@@ -59,26 +59,36 @@
     </n-space>
 
     <!-- in_progress: working on it -->
-    <n-space vertical v-if="record?.status === 'in_progress'">
+    <n-space v-if="record?.status === 'in_progress'">
+      <n-button type="primary" style="width: 150px" :disabled="loading"
+        @click="handleComplete">
+        <template #icon>
+          <DoneFilled />
+        </template>
+        已完成
+      </n-button>
+
+      <n-button style="width: 150px" :disabled="loading"
+        @click="handleReferred">
+        <template #icon>
+          <FactoryFilled />
+        </template>
+        建议返厂
+      </n-button>
+    </n-space>
+
+    <!-- completed: add problem reason and solve detail -->
+    <n-space vertical v-if="record?.status === 'completed'">
       <RepairComment v-model:value="probDescs" label="问题描述" :options="store.probDescs" />
       <RepairComment v-model:value="repairComment" label="处理方式" :options="store.repairMethods" />
-      <n-space>
-        <n-button type="primary" style="width: 150px" :disabled="loading || !repairComment.validate"
-          @click="handleComplete">
-          <template #icon>
-            <DoneFilled />
-          </template>
-          已解决
-        </n-button>
-
-        <n-button style="width: 150px" :disabled="loading"
-          @click="handleReferred">
-          <template #icon>
-            <FactoryFilled />
-          </template>
-          建议返厂
-        </n-button>
-      </n-space>
+      <n-button type="primary" style="width: 150px"
+        :disabled="loading || !probDescs.validate || !repairComment.validate"
+        @click="handleSaveDesc">
+        <template #icon>
+          <DoneFilled />
+        </template>
+        保存
+      </n-button>
     </n-space>
 
     <!-- revert button -->
@@ -221,13 +231,28 @@ const handleComplete = async () => {
   loading.value = true
   try {
     await markCompleted(props.record.id)
-    const workerDesc = probDescs.value.display
-    if (workerDesc) {
-      await updateStatus(props.record.id, "completed", workerDesc)
-    }
     message.success('处理完成')
   } catch {
     message.error('提交失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleSaveDesc = async () => {
+  if (!props.record) return
+  loading.value = true
+  try {
+    const workerDesc = [
+      probDescs.value.display ? `问题描述: ${probDescs.value.display}` : "",
+      repairComment.value.display ? `处理方式: ${repairComment.value.display}` : "",
+    ].filter(Boolean).join("\n")
+    if (workerDesc) {
+      await updateStatus(props.record.id, "completed", workerDesc)
+    }
+    message.success('保存成功')
+  } catch {
+    message.error('保存失败')
   } finally {
     loading.value = false
   }
