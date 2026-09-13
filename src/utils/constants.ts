@@ -1,10 +1,10 @@
 export const RECORD_STATUS_DESC: Record<string, string> = {
-  'pending': '预约待确认',
-  'confirmed': '预约已确认',
+  'pending': '待确认',
+  'confirmed': '已确认',
   'arrived': '已到诊所',
   'in_progress': '正在处理',
-  'completed': '已解决问题',
-  'rejected': '预约已驳回',
+  'completed': '已解决',
+  'rejected': '已驳回',
   'referred': '建议返厂',
   'no_show': '未到诊所',
 }
