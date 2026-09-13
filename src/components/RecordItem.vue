@@ -15,7 +15,7 @@
       <n-space>
         <StatusBadge :status="props.data?.status!" />
         <StatusBadge status="default" :text="props.data?.campus" @click.stop="filterCampus"/>
-        <StatusBadge status="default" :text="props.data?.tag" />
+        <StatusBadge status="default" :text="tagText" />
       </n-space>
     </template>
   </n-thing>
@@ -23,9 +23,11 @@
 
 <script setup lang="tsx">
 import type API from '@/store/api';
+import { computed } from 'vue';
 import type { PropType } from 'vue';
 import StatusBadge from "@/components/StatusBadge.vue"
 import store from '@/store';
+import { RECORD_TAG_DESC } from '@/utils/constants';
 
 import AccessTimeFilledFilled from "@vicons/material/AccessTimeFilledFilled"
 import AccessTimeOutline from "@vicons/material/AccessTimeOutlined"
@@ -39,6 +41,8 @@ import HandymanFilled from '@vicons/material/HandymanFilled';
 const props = defineProps({
   data: Object as PropType<API.Record>
 })
+
+const tagText = computed(() => RECORD_TAG_DESC[props.data?.tag ?? ''] ?? props.data?.tag)
 
 const StatusAvatar = () => {
   const status = props.data?.status

@@ -9,6 +9,24 @@ export const RECORD_STATUS_DESC: Record<string, string> = {
   'no_show': '未到诊所',
 }
 
+// RECORD_TAG_DESC shortens each record tag title to a compact label for the
+// badge UI. Keys match the titles seeded in clinic_record_tag.
+export const RECORD_TAG_DESC: Record<string, string> = {
+  '清灰换硅脂': '清灰',
+  '换风扇': '换风扇',
+  '重装系统': '重装',
+  '加硬盘/内存': '硬盘/内存',
+  '网络问题': '网络',
+  'soildworks安装': 'SW',
+  '软件安装': '软件',
+  '安装双系统': '双系统',
+  '清理C盘': '清C盘',
+  '其它问题': '其它',
+  'G15': 'G15',
+  '蛟龙16': '蛟龙16',
+  'no_pending': '无标签',
+}
+
 export const repairMethods = [
   {
     label: "硬件",
