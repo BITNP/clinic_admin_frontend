@@ -15,6 +15,7 @@
       <n-space>
         <StatusBadge :status="props.data?.status!" />
         <StatusBadge status="default" :text="props.data?.campus" @click.stop="filterCampus"/>
+        <StatusBadge status="default" :text="props.data?.tag" />
       </n-space>
     </template>
   </n-thing>

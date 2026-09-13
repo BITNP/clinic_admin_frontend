@@ -46,6 +46,7 @@ namespace API {
     referral_reason: string
     model: string
     password: string
+    tag: string
     arrive_time: string | null
     finish_time: string | null
     worker_id: number | null
