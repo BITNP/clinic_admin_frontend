@@ -13,8 +13,12 @@ interface ListResponse<T> {
 
 const nextRecordsPage = ref(1)
 
-const load = async () => {
+const load = async (reset = false) => {
   await Auth.ready()
+  if (reset) {
+    nextRecordsPage.value = 1
+    store.records = {}
+  }
   const page = nextRecordsPage.value
   nextRecordsPage.value += 1
   const response = (await Api.get<ListResponse<API.Record>>(`/api/admin/records?page=${page}`)).data

@@ -19,7 +19,7 @@
         <RecordItem :data="record" />
       </n-list-item>
       <div style="padding: 12px 20px;">
-        <n-button block :loading="loading" :disabled="loading" @click="loadRecords">
+        <n-button block :loading="loading" :disabled="loading" @click="loadRecords()">
           {{ loading ? "正在加载" : "加载更多" }}
         </n-button>
       </div>
@@ -47,7 +47,7 @@ import FilterPanel from "./FilterPanel.vue";
 const router = useRouter()
 
 onMounted(async () => {
-  if (Object.keys(store.records).length === 0) loadRecords()
+  loadRecords(true)
   console.debug(listDOM.value, store.drawerScroll)
   setTimeout(() => listDOM.value!.scrollTo({
     top: store.drawerScroll
@@ -65,10 +65,10 @@ const handleScroll = () => {
 }
 
 const loading = ref(false)
-const loadRecords = async () => {
+const loadRecords = async (reset = false) => {
   if (loading.value) return
   loading.value = true
-  await load()
+  await load(reset)
   loading.value = false
 }
 
