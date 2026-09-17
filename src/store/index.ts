@@ -30,11 +30,14 @@ const store = reactive({
   announcementList: [] as API.IAnnouncement[],
 })
 
-const load = async () => {
-  await loadRecords()
-
+const loadRooms = async () => {
   const campusRes = await Api.get<ListResponse<API.Room>>('/api/admin/rooms')
   store.campusList = campusRes.data.items
+}
+
+const load = async () => {
+  await loadRooms()
+  await loadRecords()
 
   const announcementRes = await Api.get<ListResponse<API.IAnnouncement>>('/api/admin/announcements')
   store.announcementList = announcementRes.data.items
@@ -48,4 +51,4 @@ const load = async () => {
 window.$store = store
 
 export default store;
-export { load }
+export { load, loadRooms }

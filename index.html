@@ -7,7 +7,19 @@
     <title>网协电脑诊所后台管理系统</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 32px; height: 32px; border: 3px solid rgba(128, 128, 128, 0.2); border-top-color: #2080f0; border-radius: 50%; animation: app-loading-spin 0.8s linear infinite;"></div>
+      </div>
+      <style>
+        @keyframes app-loading-spin {
+          to { transform: rotate(360deg); }
+        }
+        @media (prefers-color-scheme: dark) {
+          body { background: #101014; }
+        }
+      </style>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
