@@ -20,7 +20,7 @@
     </div>
     <n-empty v-else />
   </PageWrapper>
-  <n-float-button :right="16" :bottom="96" type="primary" class="float-action"
+  <n-float-button :right="16" :bottom="96" :width="144" :height="56" type="primary"
     @click="() => router.push('/schedule/next-week')">
     <div class="float-action-inner">
       <n-icon :size="24">
@@ -29,7 +29,7 @@
       <span>生成下周时间</span>
     </div>
   </n-float-button>
-  <n-float-button :right="16" :bottom="24" type="primary" class="float-action"
+  <n-float-button :right="16" :bottom="24" :width="144" :height="56" type="primary"
     @click="() => router.push('/schedule/add')">
     <div class="float-action-inner">
       <n-icon :size="24">
@@ -197,10 +197,6 @@ const handleDelete = (item: API.ServiceDate) => {
   gap: 8px;
   margin-left: auto;
 }
-.float-action {
-  width: 144px;
-  height: 56px;
-}
 .float-action-inner {
   display: flex;
   gap: 8px;
@@ -215,13 +211,6 @@ const handleDelete = (item: API.ServiceDate) => {
 @media screen and (max-width: 600px) {
   .room-name {
     flex-basis: 100%;
-  }
-  .float-action {
-    width: fit-content;
-    height: 48px;
-    padding: 0 16px;
-    max-width: calc(100vw - 32px);
-    overflow: hidden;
   }
   .float-action-inner span {
     font-size: 0.75rem;
