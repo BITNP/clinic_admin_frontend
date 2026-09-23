@@ -35,6 +35,8 @@ const refresh = async () => {
   await load()
 }
 
+const isLoaded = () => state.loaded
+
 // Dates already occupied in a room, used by the add/edit form date pickers.
 const fetchBusyDates = async (roomId: number, all = false) => {
   const path = all
@@ -64,6 +66,7 @@ export default reactive({
   load,
   ensureLoaded,
   refresh,
+  isLoaded,
   fetchBusyDates,
   createMany,
   update,

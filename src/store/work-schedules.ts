@@ -45,6 +45,8 @@ const refresh = async () => {
   if (state.selected) await loadDetail(state.selected.id)
 }
 
+const isLoaded = () => state.loaded
+
 const select = (id: number | null) => {
   if (id === null) {
     state.selected = null
@@ -105,6 +107,7 @@ export default reactive({
   loadDetail,
   getDetail,
   refresh,
+  isLoaded,
   select,
   create,
   remove,

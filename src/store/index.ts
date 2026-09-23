@@ -33,4 +33,16 @@ export async function refresh(...parts: StorePart[]): Promise<void> {
   await Promise.all(targets.map((part) => registry[part].refresh()))
 }
 
+/**
+ * Refresh only the given parts whose data has already been loaded, skipping any
+ * the user has not opened yet (those load fresh when navigated to). Used by the
+ * background sync poller so it does not fetch untouched sections.
+ */
+export async function refreshLoaded(...parts: StorePart[]): Promise<void> {
+  const targets = (parts.length ? parts : (Object.keys(registry) as StorePart[])).filter((part) =>
+    registry[part].isLoaded()
+  )
+  await Promise.all(targets.map((part) => registry[part].refresh()))
+}
+
 export { ui, rooms, records, schedule, staff, announcements, workSchedules }

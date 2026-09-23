@@ -3,6 +3,7 @@ import "./assets/base.css"
 import App from './App.vue'
 import router from './router'
 import Auth from './utils/Auth'
+import Sync from './utils/Sync'
 import { rooms } from './store'
 
 const app = createApp(App)
@@ -19,6 +20,8 @@ const bootstrap = async () => {
     // Still mount on failure; the filter falls back to "全部".
     console.error('room preload failed', e)
   }
+  // Poll backend change counters in the background now that we are logged in.
+  Sync.start()
   app.mount('#app')
 }
 

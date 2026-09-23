@@ -28,9 +28,12 @@ const refresh = async () => {
   await load()
 }
 
+const isLoaded = () => state.loaded
+
 export default reactive({
   state,
   load,
   ensureLoaded,
   refresh,
+  isLoaded,
 })

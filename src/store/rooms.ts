@@ -36,6 +36,8 @@ const refresh = async () => {
   await load()
 }
 
+const isLoaded = () => state.loaded
+
 const options = computed(() => state.list.map((room) => ({ label: room.name, value: room.id })))
 
 export default reactive({
@@ -44,4 +46,5 @@ export default reactive({
   load,
   ensureLoaded,
   refresh,
+  isLoaded,
 })

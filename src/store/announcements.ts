@@ -43,6 +43,8 @@ const refresh = async () => {
   await load()
 }
 
+const isLoaded = () => state.loaded
+
 const byId = (id: number) => state.items[id]
 
 const upsert = (announcement: API.IAnnouncement) => {
@@ -57,4 +59,5 @@ export default reactive({
   load,
   ensureLoaded,
   refresh,
+  isLoaded,
 })

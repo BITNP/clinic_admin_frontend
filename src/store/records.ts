@@ -71,6 +71,8 @@ const ensureLoaded = async () => {
   await refresh()
 }
 
+const isLoaded = () => state.loadedPages > 0
+
 const updateStatus = async (id: number, status: string, worker_desc?: string) => {
   const payload: Record<string, unknown> = { status }
   if (worker_desc !== undefined) {
@@ -176,6 +178,7 @@ export default reactive({
   loadMore,
   refresh,
   ensureLoaded,
+  isLoaded,
   updateStatus,
   markConfirmed,
   markArrived,

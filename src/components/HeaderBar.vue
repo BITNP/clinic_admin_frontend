@@ -147,6 +147,7 @@
 import MenuFilled from "@vicons/material/MenuFilled"
 import { ui } from '@/store';
 import Auth from "@/utils/Auth"
+import Sync from "@/utils/Sync"
 import FlexAside from "@/components/FlexAside.vue"
 import { useRouter } from "vue-router"
 import EditCalendarFilled from "@vicons/material/EditCalendarFilled"
@@ -195,7 +196,7 @@ const menu = [
     title: "退出登录",
     key: "logout",
     icon: renderIcon(LogOutFilled),
-    onClick: () => { Auth.logout(); router.push("/login") }
+    onClick: () => { Sync.stop(); Auth.logout(); router.push("/login") }
   }
 ]
 
