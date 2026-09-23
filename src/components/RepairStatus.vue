@@ -79,8 +79,8 @@
 
     <!-- completed: add problem reason and solve detail -->
     <n-space vertical v-if="record?.status === 'completed'">
-      <RepairComment v-model:value="probDescs" label="问题描述" :options="store.probDescs" />
-      <RepairComment v-model:value="repairComment" label="处理方式" :options="store.repairMethods" />
+      <RepairComment v-model:value="probDescs" label="问题描述" :options="probDescOptions" />
+      <RepairComment v-model:value="repairComment" label="处理方式" :options="repairMethods" />
       <n-button type="primary" style="width: 150px"
         :disabled="loading || !probDescs.validate || !repairComment.validate"
         @click="handleSaveDesc">
@@ -91,30 +91,28 @@
       </n-button>
     </n-space>
 
-    <!-- revert button -->
-    <n-space>
-      <n-collapse-transition :show="(store.history.get(record?.id!)?.length ?? 0) !== 0">
-        <n-button style="width: 150px" @click="handleRevert">
-          <template #icon>
-            <HistoryFilled />
-          </template>
-          后悔药
-        </n-button>
-      </n-collapse-transition>
+    <!-- revert button: undo the latest action while it is inside the 5-min window -->
+    <n-space v-if="canRevert">
+      <n-button style="width: 150px" :disabled="loading" @click="handleRevert">
+        <template #icon>
+          <HistoryFilled />
+        </template>
+        后悔药{{ (record?.revertible_count ?? 0) > 1 ? ` (${record?.revertible_count})` : "" }}
+      </n-button>
     </n-space>
   </n-space>
 </template>
 
 <script setup lang="tsx">
-import store from '@/store';
+import { records, rooms } from '@/store';
 import type API from '@/store/api';
-import { revertRecord as revertStoreRecord, updateStatus, markConfirmed, markArrived, markInProgress, markCompleted, markRejected, markReferred, markNoShow } from '@/store/record';
+import { probDescs as probDescOptions, repairMethods } from '@/utils/constants';
 import DoneFilled from "@vicons/material/DoneFilled";
 import PersonOffFilled from "@vicons/material/PersonOffFilled";
 import HistoryFilled from "@vicons/material/HistoryFilled";
 import FactoryFilled from "@vicons/material/FactoryFilled";
 import { useMessage } from 'naive-ui';
-import { computed, ref, toRaw } from 'vue';
+import { computed, onMounted, onUnmounted, ref, toRaw } from 'vue';
 
 const props = defineProps<{
   record: API.Record | null,
@@ -137,7 +135,7 @@ const probDescs = ref({
   display: ""
 })
 
-const campusList = computed(() => store.campusList.map((campus) => ({
+const campusList = computed(() => rooms.state.list.map((campus) => ({
   label: campus.name,
   value: campus.id
 })))
@@ -154,7 +152,7 @@ const handleSubmit = async () => {
     }
     loading.value = true
     try {
-      await markRejected(record.id, reasonInput.value)
+      await records.markRejected(record.id, reasonInput.value)
       message.success('驳回成功')
     } catch {
       message.error('驳回失败')
@@ -164,7 +162,7 @@ const handleSubmit = async () => {
   } else if (action.value === "refer") {
     loading.value = true
     try {
-      await markReferred(record.id, reasonInput.value || undefined)
+      await records.markReferred(record.id, reasonInput.value || undefined)
       message.success('已建议返厂')
     } catch {
       message.error('提交失败')
@@ -174,7 +172,7 @@ const handleSubmit = async () => {
   } else {
     loading.value = true
     try {
-      await markConfirmed(record.id)
+      await records.markConfirmed(record.id)
       if (campusSelect.value !== null) {
         console.log('campus change requested', campusSelect.value)
       }
@@ -191,7 +189,7 @@ const handleArrive = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await markArrived(props.record.id)
+    await records.markArrived(props.record.id)
     message.success('已到诊所')
   } catch {
     message.error('操作失败')
@@ -204,7 +202,7 @@ const handleNoShow = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await markNoShow(props.record.id)
+    await records.markNoShow(props.record.id)
     message.success('已标记未到')
   } catch {
     message.error('操作失败')
@@ -217,7 +215,7 @@ const handleInProgress = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await markInProgress(props.record.id)
+    await records.markInProgress(props.record.id)
     message.success('开始处理')
   } catch {
     message.error('操作失败')
@@ -230,7 +228,7 @@ const handleComplete = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await markCompleted(props.record.id)
+    await records.markCompleted(props.record.id)
     message.success('处理完成')
   } catch {
     message.error('提交失败')
@@ -248,7 +246,7 @@ const handleSaveDesc = async () => {
       repairComment.value.display ? `处理方式: ${repairComment.value.display}` : "",
     ].filter(Boolean).join("\n")
     if (workerDesc) {
-      await updateStatus(props.record.id, "completed", workerDesc)
+      await records.updateStatus(props.record.id, "completed", workerDesc)
     }
     message.success('保存成功')
   } catch {
@@ -262,7 +260,7 @@ const handleReferred = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    await markReferred(props.record.id)
+    await records.markReferred(props.record.id)
     message.success('已建议返厂')
   } catch {
     message.error('提交失败')
@@ -271,18 +269,38 @@ const handleReferred = async () => {
   }
 }
 
+const now = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | undefined
+
+onMounted(() => {
+  clock = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (clock) clearInterval(clock)
+})
+
+// Visible while the backend says the latest action is still inside the
+// window and the local clock has not passed its deadline.
+const canRevert = computed(() => {
+  if (!props.record?.revertible) return false
+  if (!props.record.revertible_until) return true
+  return new Date(props.record.revertible_until).getTime() > now.value
+})
+
 const handleRevert = async () => {
   if (!props.record) return
-  const prev = await revertStoreRecord(props.record.id)
-  if (prev) {
-    try {
-      await updateStatus(prev.id, prev.status, prev.worker_desc)
-      message.success('Back to Future')
-    } catch {
-      message.error('时间机器坏了qwq')
-    }
-  } else {
-    message.error('时间不能倒流')
+  loading.value = true
+  try {
+    await records.revertRecord(props.record.id)
+    message.success('Back to Future')
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    message.error(status === 409 ? '时间已经流走了' : '时间机器坏了qwq')
+  } finally {
+    loading.value = false
   }
 }
 </script>

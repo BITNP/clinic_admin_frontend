@@ -14,18 +14,18 @@
           </div>
         </div>
       </div>
-      <n-list-item v-for="record in records" :key="record.id" @click="showRecord(record)"
-        v-show="visibility.includes(record.id)">
+      <n-list-item v-for="record in recordList" :key="record.id" @click="showRecord(record)"
+        v-show="records.visibility.includes(record.id)">
         <RecordItem :data="record" />
       </n-list-item>
       <div style="padding: 12px 20px;">
-        <n-button block :loading="loading" :disabled="loading" @click="loadRecords()">
-          {{ loading ? "正在加载" : "加载更多" }}
+        <n-button block :loading="records.state.loading" :disabled="records.state.loading" @click="records.loadMore()">
+          {{ records.state.loading ? "正在加载" : "加载更多" }}
         </n-button>
       </div>
     </n-list>
     <n-element v-else style="height: 100%; width: 100%; display: flex; justify-content: center; align-items: center;">
-      <n-spin v-if="loading" />
+      <n-spin v-if="records.state.loading" />
       <n-text v-else depth="3">暂时没有任务</n-text>
     </n-element>
   </div>
@@ -36,8 +36,7 @@ import Auth from "@/utils/Auth";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router"
 import type API from "@/store/api";
-import { load, visibility } from "@/store/record"
-import store from "@/store"
+import { records, ui } from "@/store"
 import { lt800px as isShrink, lt600px as isPopup } from "@/utils/Responsive"
 import ArrowDropDownFilled from "@vicons/material/ArrowDropDownFilled"
 
@@ -47,10 +46,10 @@ import FilterPanel from "./FilterPanel.vue";
 const router = useRouter()
 
 onMounted(async () => {
-  loadRecords(true)
-  console.debug(listDOM.value, store.drawerScroll)
+  records.refresh()
+  console.debug(listDOM.value, ui.drawerScroll)
   setTimeout(() => listDOM.value!.scrollTo({
-    top: store.drawerScroll
+    top: ui.drawerScroll
   }), 50)
 })
 
@@ -59,39 +58,31 @@ const listDOM = ref<HTMLDivElement | null>(null)
 const handleScroll = () => {
   let { scrollHeight, scrollTop, clientHeight } = listDOM.value!
   if (scrollHeight - scrollTop - clientHeight <= 100) {
-    loadRecords()
+    records.loadMore()
   }
-  store.drawerScroll = listDOM.value!.scrollTop
-}
-
-const loading = ref(false)
-const loadRecords = async (reset = false) => {
-  if (loading.value) return
-  loading.value = true
-  await load(reset)
-  loading.value = false
+  ui.drawerScroll = listDOM.value!.scrollTop
 }
 
 const showRecord = (record: API.Record) => {
   router.push(`/records/${record.id}`)
 
-  if (isShrink.value) store.isDrawerOpen = false
+  if (isShrink.value) ui.isDrawerOpen = false
 }
 
-watch(() => store.filters, () => {
-  console.debug("filters: ", store.filters)
+watch(() => records.state.filters, () => {
+  console.debug("filters: ", records.state.filters)
 })
-watch(() => store.records, () => {
-  console.debug("records: ", store.records)
+watch(() => records.state.items, () => {
+  console.debug("records: ", records.state.items)
 }, { deep: true })
 
 const filterExpanded = ref(!isPopup.value)
 watch(isPopup, () => {
   filterExpanded.value = !isPopup.value
 })
-const filterCount = computed(() => Object.keys(store.filters).length)
-const recordCount = computed(() => Object.keys(store.records).length)
-const records = computed(() => Object.keys(store.records).reverse().map((key) => store.records[parseInt(key)]))
+const filterCount = computed(() => Object.keys(records.state.filters).length)
+const recordCount = computed(() => Object.keys(records.state.items).length)
+const recordList = computed(() => Object.keys(records.state.items).reverse().map((key) => records.state.items[parseInt(key)]))
 </script>
 
 <style scoped>

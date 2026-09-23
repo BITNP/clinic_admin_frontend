@@ -33,13 +33,11 @@
 
 <script setup lang="tsx">
 import type API from '@/store/api';
-import { load } from '@/store';
-import { isNextRecordExist, isPrevRecordExist, prevRecord, nextRecord } from '@/store/record';
+import { records } from '@/store';
 import Api from '@/utils/Api';
 import { useMessage } from 'naive-ui';
 import { onMounted, onUpdated, ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import store from '@/store';
 import ArrowBackFilled from "@vicons/material/ArrowBackFilled";
 import ArrowForwardFilled from "@vicons/material/ArrowForwardFilled";
 
@@ -54,11 +52,11 @@ const props = defineProps({
 })
 
 const toPrevRecord = () => {
-  router.push(`/records/${prevRecord(currentId.value)}`)
+  router.push(`/records/${records.prevRecord(currentId.value)}`)
 }
 
 const toNextRecord = () => {
-  router.push(`/records/${nextRecord(currentId.value)}`)
+  router.push(`/records/${records.nextRecord(currentId.value)}`)
 }
 
 const record = ref<API.Record | null>(null)
@@ -68,7 +66,7 @@ const currentId = ref<number>(0)
 
 const loadRecord = async () => {
   currentId.value = parseInt(props.recordId)
-  record.value = store.records[parseInt(props.recordId)]!
+  record.value = records.state.items[parseInt(props.recordId)]!
 
   setTimeout(() => {
     if (!record.value) {
@@ -101,7 +99,7 @@ const loadRecord = async () => {
 }
 
 onMounted(async () => {
-  await load()
+  await records.ensureLoaded()
   loadRecord()
 })
 onUpdated(() => {
@@ -110,20 +108,20 @@ onUpdated(() => {
   loadRecord()
 })
 
-watch(() => store.records, loadRecord)
+watch(() => records.state.items, loadRecord)
 watch(() => {
-  return store.records[parseInt(props.recordId)]!
+  return records.state.items[parseInt(props.recordId)]!
 }, () => {
-  record.value = store.records[parseInt(props.recordId)]!
+  record.value = records.state.items[parseInt(props.recordId)]!
   loadRecord()
 })
 
 const isPrevRecord = computed(() => {
-  return isPrevRecordExist(currentId.value)
+  return records.isPrevRecordExist(currentId.value)
 })
 
 const isNextRecord = computed(() => {
-  return isNextRecordExist(currentId.value)
+  return records.isNextRecordExist(currentId.value)
 })
 </script>
 

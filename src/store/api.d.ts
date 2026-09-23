@@ -50,6 +50,10 @@ namespace API {
     arrive_time: string | null
     finish_time: string | null
     worker_id: number | null
+    revertible?: boolean
+    revertible_until?: string | null
+    revertible_count?: number
+    last_action_at?: string | null
   }
 
   interface IRecords {

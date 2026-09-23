@@ -32,7 +32,7 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, reactive, watch } from 'vue';
-import store, { load } from "@/store";
+import { rooms, schedule } from "@/store";
 import type API from "@/store/api";
 import type { FormInst } from "naive-ui";
 import Api from "@/utils/Api";
@@ -70,9 +70,9 @@ const unavailableDates = ref<string[]>([])
 
 const fetchUnavailableDates = async (roomId: number) => {
   try {
-    const res = await Api.get<{ items: API.ServiceDate[] }>(`/api/admin/service-dates/all?room_ids=${roomId}&pageSize=1000`)
+    const dates = await schedule.fetchBusyDates(roomId, true)
     if (roomId !== formValue.room_id) return
-    unavailableDates.value = res.data.items.map((d) => d.date.slice(0, 10))
+    unavailableDates.value = dates
   } catch (e) {
     console.error('加载已占用日期失败', e)
   }
@@ -85,7 +85,7 @@ const isDateDisabled = (current: number) => {
     unavailableDates.value.includes(key)
 }
 
-const campuses = computed(() => store.campusList.map((item) => {
+const campuses = computed(() => rooms.state.list.map((item) => {
   return {
     label: item.name,
     value: item.id
@@ -143,9 +143,7 @@ const formRule = {
 }
 
 onMounted(async () => {
-  if (!store.campusList.length) {
-    await load();
-  }
+  await rooms.ensureLoaded();
   await Auth.auth();
 
   const res = await Api.get<API.ServiceDate>(`/api/admin/service-dates/${props.dateId}`)
@@ -184,7 +182,7 @@ const handleSubmit = async () => {
 
   try {
     loading.value = true
-    await Api.put(`/api/admin/service-dates/${props.dateId}`, payload)
+    await schedule.update(props.dateId, payload)
     message.success("提交成功啦")
     if (formValue.room_id !== null) {
       fetchUnavailableDates(formValue.room_id)

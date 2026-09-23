@@ -1,54 +1,36 @@
-import { reactive } from 'vue'
-import type API from './api';
-import Api from "@/utils/Api";
-import { load as loadRecords } from './record'
-import { probDescs, repairMethods } from '@/utils/constants';
+import ui from './ui'
+import rooms from './rooms'
+import records from './records'
+import schedule from './schedule'
+import staff from './staff'
+import announcements from './announcements'
+import workSchedules from './work-schedules'
 
-interface ListResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  pageSize: number
+// Domain modules that own reloadable data. `ui` is deliberately excluded.
+const registry = {
+  rooms,
+  records,
+  schedule,
+  staff,
+  announcements,
+  workSchedules,
 }
 
-const store = reactive({
-  isDrawerOpen: false,
-  drawerScroll: 0,
-  records: {} as {
-    [k: API.Record['id']]: API.Record
-  },
-  filters: {} as {
-    [key: string]: {
-      value: string
-      filter: (record: API.Record) => boolean
-    }[]
-  },
-  campusList: [] as API.Room[],
-  repairMethods: [] as API.RecordDesc[],
-  probDescs: [] as API.RecordDesc[],
-  history: new Map<API.Record['id'], API.Record[]>(),
-  announcementList: [] as API.IAnnouncement[],
-})
+export type StorePart = keyof typeof registry
 
-const loadRooms = async () => {
-  const campusRes = await Api.get<ListResponse<API.Room>>('/api/admin/rooms')
-  store.campusList = campusRes.data.items
+/**
+ * Refresh one or more parts of the store, each independently of the others.
+ *
+ *   refresh()                       // everything
+ *   refresh('records')              // only the ticket list
+ *   refresh('schedule', 'rooms')    // just these two
+ *
+ * Each part implements the same `refresh()` contract, so callers don't need to
+ * know what a domain actually fetches.
+ */
+export async function refresh(...parts: StorePart[]): Promise<void> {
+  const targets = parts.length ? parts : (Object.keys(registry) as StorePart[])
+  await Promise.all(targets.map((part) => registry[part].refresh()))
 }
 
-const load = async () => {
-  await loadRooms()
-  await loadRecords()
-
-  const announcementRes = await Api.get<ListResponse<API.IAnnouncement>>('/api/admin/announcements')
-  store.announcementList = announcementRes.data.items
-
-  console.debug("storeLoad: ", repairMethods)
-  store.repairMethods = repairMethods
-  store.probDescs = probDescs
-}
-
-//@ts-ignore
-window.$store = store
-
-export default store;
-export { load, loadRooms }
+export { ui, rooms, records, schedule, staff, announcements, workSchedules }

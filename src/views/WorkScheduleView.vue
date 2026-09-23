@@ -306,9 +306,8 @@
 
 <script setup lang="ts">
 import PageWrapper from '@/components/PageWrapper.vue'
-import Api from '@/utils/Api'
+import { rooms, workSchedules } from '@/store'
 import type API from '@/store/api'
-import store, { load as storeLoad } from '@/store'
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useMessage, useDialog, lightTheme } from 'naive-ui'
 import type { FormInst } from 'naive-ui'
@@ -343,14 +342,14 @@ const weekdayLabels = [
 const message = useMessage()
 const dialog = useDialog()
 
-const scheduleList = ref<API.WorkSchedule[]>([])
+const scheduleList = computed(() => workSchedules.state.list)
 const selectedId = ref<number | null>(null)
-const selectedSchedule = ref<API.WorkSchedule | null>(null)
-const loading = ref(false)
+const selectedSchedule = computed(() => workSchedules.state.selected)
+const loading = computed(() => workSchedules.state.loading)
 const applying = ref(false)
 const creating = ref(false)
 const showCreateModal = ref(false)
-const validStaffList = ref<API.Staff[]>([])
+const validStaffList = computed(() => workSchedules.state.validStaff)
 const showAddModal = ref(false)
 const addTargetRoomId = ref(0)
 const addTargetWeekday = ref(0)
@@ -487,7 +486,7 @@ const roomsWithData = computed<RoomData[]>(() => {
   const emptyColumns = weekdayLabels.map(() => [] as CellEntry[])
   const emptyWeekdayIds = weekdayLabels.map(() => null)
   const emptyLabels = weekdayLabels.map(() => '--' as string)
-  for (const room of store.campusList) {
+  for (const room of rooms.state.list) {
     if (!knownIds.has(room.id)) {
       result.push({ id: room.id, name: room.name, columns: emptyColumns, weekdayIds: emptyWeekdayIds, weekdayTimeLabels: emptyLabels, maxRows: 0 })
     }
@@ -559,34 +558,22 @@ const editTimeEnd = ref<string | null>(null)
 const editTimeLoading = ref(false)
 
 const onSelect = (val: number | null) => {
-  if (val) fetchDetail(val)
-  else {
-    selectedSchedule.value = null
-    validStaffList.value = []
-  }
+  if (val) workSchedules.loadDetail(val)
+  else workSchedules.select(null)
 }
 
 const fetchList = async () => {
-  loading.value = true
   try {
-    const res = await Api.get<{ items: API.WorkSchedule[] }>('/api/admin/work-schedules/all')
-    scheduleList.value = res.data.items
+    await workSchedules.loadList()
   } catch (e: any) {
     console.error('Failed to load schedule list', e)
     message.error(`加载排班列表失败: ${e.response?.status === 404 ? '后端接口不存在，请重启后端' : e.response?.data?.error || e.message}`)
-  } finally {
-    loading.value = false
   }
 }
 
 const fetchDetail = async (id: number) => {
   try {
-    const [detailRes, validRes] = await Promise.all([
-      Api.get<API.WorkSchedule>(`/api/admin/work-schedules/${id}`),
-      Api.get<{ items: API.Staff[] }>(`/api/admin/work-schedules/${id}/valid-staff`),
-    ])
-    selectedSchedule.value = detailRes.data
-    validStaffList.value = validRes.data.items ?? []
+    await workSchedules.loadDetail(id)
   } catch (e) {
     console.error('Failed to load schedule detail', e)
     message.error('加载排班详情失败')
@@ -612,11 +599,10 @@ const handleCreate = async () => {
       end_date: createForm.endDate,
       weekdays: [] as any[],
     }
-    await Api.post('/api/admin/work-schedules', payload)
+    await workSchedules.create(payload)
     message.success('排班创建成功')
     showCreateModal.value = false
     Object.assign(createForm, { name: '', startDate: null, endDate: null })
-    await fetchList()
   } catch (e: any) {
     const errMsg = e.response?.status === 404
       ? '后端接口不存在，请重启后端'
@@ -636,11 +622,9 @@ const handleDelete = () => {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await Api.delete(`/api/admin/work-schedules/${selectedId.value}`)
+        await workSchedules.remove(selectedId.value!)
         message.success('已删除')
         selectedId.value = null
-        selectedSchedule.value = null
-        await fetchList()
       } catch (e: any) {
         const errMsg = e.response?.status === 404
           ? '后端接口不存在，请重启后端'
@@ -673,15 +657,13 @@ const handleEditSubmit = async () => {
   }
   editLoading.value = true
   try {
-    await Api.put(`/api/admin/work-schedules/${selectedId.value}`, {
+    await workSchedules.updateMeta(selectedId.value!, {
       name: editForm.name,
       start_date: editForm.startDate,
       end_date: editForm.endDate,
     })
     message.success('排班已更新')
     showEditModal.value = false
-    await fetchList()
-    if (selectedId.value) await fetchDetail(selectedId.value)
   } catch (e: any) {
     const errMsg = e.response?.status === 404
       ? '后端接口不存在，请重启后端'
@@ -704,10 +686,10 @@ const handleApply = async () => {
     const previousId = currentEnabled?.id ?? null
     try {
       if (currentEnabled) {
-        await Api.put(`/api/admin/work-schedules/${currentEnabled.id}`, { enabled: false })
+        await workSchedules.setEnabled(currentEnabled.id, false)
         disabledPrevious = true
       }
-      await Api.put(`/api/admin/work-schedules/${selectedId.value}`, { enabled: true })
+      await workSchedules.setEnabled(selectedId.value!, true)
       message.success('已启用该排班')
       await fetchList()
       await fetchDetail(selectedId.value!)
@@ -718,7 +700,7 @@ const handleApply = async () => {
       }
       if (disabledPrevious && previousId) {
         try {
-          await Api.put(`/api/admin/work-schedules/${previousId}`, { enabled: true })
+          await workSchedules.setEnabled(previousId, true)
           await fetchList()
           message.info('已恢复之前的排班')
         } catch {
@@ -754,11 +736,11 @@ const confirmRemove = (staffId: number, weekdayId: number) => {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await Api.delete(`/api/admin/work-schedules/${selectedId.value}/staff`, {
-          data: { weekday_id: weekdayId, staff_id: staffId },
+        await workSchedules.removeStaff(selectedId.value!, {
+          weekday_id: weekdayId,
+          staff_id: staffId,
         })
         message.success('已移除')
-        await fetchDetail(selectedId.value!)
       } catch (e: any) {
         message.error(e.response?.data?.error || '移除失败')
       }
@@ -774,14 +756,13 @@ const openAddModal = (roomId: number, weekday: number) => {
 
 const handleAddStaff = async (staffId: number) => {
   try {
-    await Api.post(`/api/admin/work-schedules/${selectedId.value}/staff`, {
+    await workSchedules.addStaff(selectedId.value!, {
       room_id: addTargetRoomId.value,
       weekday: addTargetWeekday.value,
       staff_id: staffId,
     })
     message.success('已添加')
     showAddModal.value = false
-    await fetchDetail(selectedId.value!)
   } catch (e: any) {
     message.error(e.response?.data?.error || '添加失败')
   }
@@ -820,7 +801,7 @@ const handleEditTime = async () => {
   }
   editTimeLoading.value = true
   try {
-    await Api.put(`/api/admin/work-schedules/${selectedId.value}/weekdays`, {
+    await workSchedules.updateWeekday(selectedId.value!, {
       room_id: editTimeRoomId.value,
       weekday: editTimeWeekday.value,
       start_time: editTimeStart.value,
@@ -828,7 +809,6 @@ const handleEditTime = async () => {
     })
     message.success('工作时间已更新')
     showEditTimeModal.value = false
-    await fetchDetail(selectedId.value!)
   } catch (e: any) {
     message.error(e.response?.data?.error || '更新失败')
   } finally {
@@ -903,9 +883,7 @@ const handlePrint = async () => {
 }
 
 onMounted(async () => {
-  if (store.campusList.length === 0) {
-    await storeLoad()
-  }
+  await rooms.ensureLoaded()
   await fetchList()
   if (scheduleList.value.length > 0) {
     const enabled = scheduleList.value.find(s => s.enabled)

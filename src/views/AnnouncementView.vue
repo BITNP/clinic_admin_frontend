@@ -38,7 +38,7 @@
 <script setup lang="ts">
 import PageWrapper from '@/components/PageWrapper.vue';
 import router from '@/router';
-import store, { load } from '@/store';
+import { announcements } from '@/store';
 import type API from '@/store/api';
 import { computed, onMounted } from 'vue';
 
@@ -50,17 +50,15 @@ const todayStr = (() => {
 })()
 
 const validAnnouncements = computed(() =>
-  store.announcementList.filter(a => a.expireDate >= todayStr)
+  announcements.list.filter(a => a.expireDate >= todayStr)
 )
 
 const expiredAnnouncements = computed(() =>
-  store.announcementList.filter(a => a.expireDate < todayStr)
+  announcements.list.filter(a => a.expireDate < todayStr)
 )
 
 onMounted(async () => {
-  if (!store.announcementList.length) {
-    await load();
-  }
+  await announcements.ensureLoaded();
 })
 
 const edit = (target: API.IAnnouncement) => {

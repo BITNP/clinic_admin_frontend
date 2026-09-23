@@ -32,8 +32,7 @@
 
 <script setup lang="ts">
 import PageWrapper from '@/components/PageWrapper.vue'
-import Api from '@/utils/Api'
-import type API from '@/store/api'
+import { staff } from '@/store'
 import { ref, computed, onMounted } from 'vue'
 import type { DataTableColumn } from 'naive-ui'
 
@@ -47,7 +46,7 @@ interface StaffRow {
   年份: string
 }
 
-const rawData = ref<API.Staff[]>([])
+const rawData = computed(() => staff.state.list)
 const searchName = ref('')
 const activeFilter = ref('')
 
@@ -122,8 +121,7 @@ const resetFilter = () => {
 
 onMounted(async () => {
   try {
-    const res = await Api.get<{ items: API.Staff[] }>('/api/admin/staff')
-    rawData.value = res.data.items
+    await staff.ensureLoaded()
   } catch (e) {
     console.error('Failed to load staff list', e)
   }

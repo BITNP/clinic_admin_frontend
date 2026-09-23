@@ -47,7 +47,7 @@
 
 <script setup lang="ts">
 import MilkdownEditor from '@/components/MilkdownEditor.vue';
-import store, { load } from '@/store';
+import { announcements } from '@/store';
 import type API from '@/store/api';
 import { MilkdownProvider } from '@milkdown/vue';
 import { computed, onMounted, reactive, ref } from 'vue';
@@ -94,11 +94,9 @@ const defaultAnnouncement: API.IAnnouncement = {
 };
 
 const ctx = computed<API.IAnnouncement>(() =>
-  store.announcementList.find((item) => item.id === parseInt(props.announcementId))
+  announcements.byId(parseInt(props.announcementId))
     ?? defaultAnnouncement
 );
-
-const ctxIdx = computed(() => store.announcementList.findIndex((item) => item.id === parseInt(props.announcementId)))
 
 const form = reactive<API.IAnnouncement>({ ...defaultAnnouncement });
 const txt = ref<string>('');
@@ -152,11 +150,7 @@ const handleSave = async () => {
   try {
     const saved = await commit(data);
     message.success("保存成功");
-    if (isCreate.value) {
-      store.announcementList.push(saved ?? data);
-    } else {
-      store.announcementList[ctxIdx.value] = saved ?? data;
-    }
+    announcements.upsert(saved ?? data);
     router.back()
   }
   catch (e) {
@@ -182,9 +176,7 @@ const commit = async (data: API.IAnnouncement) => {
 }
 
 onMounted(async () => {
-  if (!store.announcementList.length) {
-    await load();
-  }
+  await announcements.ensureLoaded();
   loading.value = "success";
   Object.assign(form, ctx.value);
   txt.value = ctx.value.content;

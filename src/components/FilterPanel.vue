@@ -10,16 +10,16 @@
   </n-form-item>
   <n-space style="padding: 8px 0">
     <n-button type="primary" @click="() => {
-      store.filters = generateFilters()
+      records.state.filters = generateFilters()
     }">确认</n-button>
     <n-button @click="() => {
-      store.filters = {}
+      records.state.filters = {}
     }">重置</n-button>
   </n-space>
 </template>
 
 <script setup lang="ts">
-import store from "@/store";
+import { records, rooms } from "@/store";
 import type API from "@/store/api";
 import { onMounted, ref, watch } from "vue"
 
@@ -37,11 +37,11 @@ const selectedDate = ref<number | null>(null)
 
 watch(isToday, () => {
   if (isToday.value) selectedDate.value = null
-  store.filters = generateFilters()
+  records.state.filters = generateFilters()
 })
 watch(selectedDate, () => {
   if (selectedDate.value) isToday.value = false
-  store.filters = generateFilters()
+  records.state.filters = generateFilters()
 })
 
 const toggleToday = () => {
@@ -49,9 +49,9 @@ const toggleToday = () => {
 }
 
 onMounted(() => {
-  campus.value = store.filters["campus"] ? store.filters["campus"][0].value : "all"
+  campus.value = records.state.filters["campus"] ? records.state.filters["campus"][0].value : "all"
 
-  const dateFilter = store.filters["date"]
+  const dateFilter = records.state.filters["date"]
   if (dateFilter && dateFilter.length > 0) {
     if (dateFilter[0].value === "today") {
       isToday.value = true
@@ -60,13 +60,13 @@ onMounted(() => {
     }
   }
 
-  store.campusList.forEach((campus) => campusList.value.push({
+  rooms.state.list.forEach((campus) => campusList.value.push({
     label: campus.name,
     value: campus.name
   }))
 })
 
-watch(() => store.filters, (filters) => {
+watch(() => records.state.filters, (filters) => {
   if (Object.keys(filters).length === 0) {
     campus.value = "all"
     isToday.value = false
@@ -75,7 +75,7 @@ watch(() => store.filters, (filters) => {
 }, { deep: true })
 
 const generateFilters = () => {
-  let filters = {} as typeof store.filters
+  let filters = {} as typeof records.state.filters
 
   if (!filters["campus"]) filters["campus"] = []
   if (campus.value !== "all") {

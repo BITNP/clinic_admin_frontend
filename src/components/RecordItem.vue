@@ -26,7 +26,7 @@ import type API from '@/store/api';
 import { computed } from 'vue';
 import type { PropType } from 'vue';
 import StatusBadge from "@/components/StatusBadge.vue"
-import store from '@/store';
+import { records } from '@/store';
 import { RECORD_TAG_DESC } from '@/utils/constants';
 
 import AccessTimeFilledFilled from "@vicons/material/AccessTimeFilledFilled"
@@ -76,13 +76,13 @@ const StatusAvatar = () => {
 }
 
 const filterCampus = () => {
-  const filters = store.filters
+  const filters = records.state.filters
 
   filters['campus'] = [{
     value: props.data?.campus!,
     filter: (ele) => ele.campus === props.data?.campus
   }]
   // eslint-disable-next-line no-self-assign
-  store.filters = filters
+  records.state.filters = filters
 }
 </script>

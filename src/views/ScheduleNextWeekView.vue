@@ -78,10 +78,8 @@
 
 <script lang="ts" setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import store, { load } from "@/store"
-import type API from "@/store/api"
+import { rooms, schedule, workSchedules } from "@/store"
 import { useRouter } from 'vue-router'
-import Api from "@/utils/Api"
 import Auth from "@/utils/Auth"
 import { useMessage } from 'naive-ui'
 import PageWrapper from '@/components/PageWrapper.vue'
@@ -257,7 +255,7 @@ const handleSubmit = async () => {
       return
     }
 
-    await Promise.all(payloads.map(p => Api.post('/api/admin/service-dates', p)))
+    await schedule.createMany(payloads)
     message.success('服务时间已创建')
     router.push('/schedule')
   } catch (e: any) {
@@ -269,22 +267,19 @@ const handleSubmit = async () => {
 }
 
 onMounted(async () => {
-  if (!store.campusList.length) {
-    await load()
-  }
+  await rooms.ensureLoaded()
   await Auth.auth()
 
   try {
-    const res = await Api.get<{ items: API.WorkSchedule[] }>('/api/admin/work-schedules/all')
-    const enabled = res.data.items.find(s => s.enabled)
+    await workSchedules.loadList()
+    const enabled = workSchedules.state.list.find(s => s.enabled)
 
     if (enabled) {
       try {
-        const detailRes = await Api.get<API.WorkSchedule>(`/api/admin/work-schedules/${enabled.id}`)
-        const detail = detailRes.data
+        const detail = await workSchedules.getDetail(enabled.id)
         if (detail.weekdays?.length) {
           const roomIds = new Set(detail.weekdays.map(wd => wd.room_id))
-          availableRooms.value = store.campusList
+          availableRooms.value = rooms.state.list
             .filter(r => roomIds.has(r.id))
             .map(r => ({ id: r.id, name: r.name }))
         }
@@ -301,14 +296,12 @@ onMounted(async () => {
 
           const fromStr = mondayNextWeek.toISOString()
           const toStr = sundayNextWeek.toISOString()
-          const roomIdStr = availableRooms.value.map(r => r.id).join(',')
+          const roomIdList = availableRooms.value.map(r => r.id)
 
-          const availRes = await Api.get<{ items: { room_id: number; date: string; available: boolean }[] }>(
-            `/api/admin/work-schedules/service-availability?from=${fromStr}&to=${toStr}&room_ids=${roomIdStr}`
-          )
+          const items = await workSchedules.fetchAvailability(fromStr, toStr, roomIdList)
 
           const map = new Map<string, boolean>()
-          for (const item of availRes.data.items) {
+          for (const item of items) {
             map.set(`${item.room_id}-${item.date}`, item.available)
           }
           availability.value = map

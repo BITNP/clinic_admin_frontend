@@ -145,7 +145,7 @@
 
 <script setup lang="ts">
 import MenuFilled from "@vicons/material/MenuFilled"
-import store from '@/store';
+import { ui } from '@/store';
 import Auth from "@/utils/Auth"
 import FlexAside from "@/components/FlexAside.vue"
 import { useRouter } from "vue-router"
@@ -208,8 +208,8 @@ const handleMenuClick = (key: string) => {
 }
 
 const openDrawer = () => {
-  store.isDrawerOpen = !store.isDrawerOpen
-  console.debug(store.isDrawerOpen)
+  ui.isDrawerOpen = !ui.isDrawerOpen
+  console.debug(ui.isDrawerOpen)
 }
 
 const props = defineProps({

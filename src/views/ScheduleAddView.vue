@@ -41,11 +41,9 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, reactive, watch } from 'vue';
-import store, { load } from "@/store";
-import type API from "@/store/api";
+import { rooms, schedule } from "@/store";
 import type { FormInst } from "naive-ui";
 import { useRouter } from 'vue-router';
-import Api from "@/utils/Api";
 import { useMessage } from 'naive-ui';
 import Auth from "@/utils/Auth";
 import PageWrapper from '@/components/PageWrapper.vue';
@@ -74,9 +72,9 @@ const unavailableDates = ref<string[]>([])
 
 const fetchUnavailableDates = async (roomId: number) => {
   try {
-    const res = await Api.get<{ items: API.ServiceDate[] }>(`/api/admin/service-dates?room_ids=${roomId}&pageSize=1000`)
+    const dates = await schedule.fetchBusyDates(roomId)
     if (roomId !== formValue.room_id) return
-    unavailableDates.value = res.data.items.map((d) => d.date.slice(0, 10))
+    unavailableDates.value = dates
   } catch (e) {
     console.error('加载已占用日期失败', e)
   }
@@ -86,7 +84,7 @@ const isDateDisabled = (current: number) => {
   return unavailableDates.value.includes(toDateStr(current))
 }
 
-const campuses = computed(() => store.campusList.map((item) => {
+const campuses = computed(() => rooms.state.list.map((item) => {
   return {
     label: item.name,
     value: item.id
@@ -95,7 +93,7 @@ const campuses = computed(() => store.campusList.map((item) => {
 
 const defaultCampus = computed(() => {
   // no longer have user.campus; default to first campus or null
-  return store.campusList[0]?.id ?? null
+  return rooms.state.list[0]?.id ?? null
 })
 
 const formValue = reactive({
@@ -145,9 +143,7 @@ const formRule = {
 }
 
 onMounted(async () => {
-  if (!store.campusList.length) {
-    await load();
-  }
+  await rooms.ensureLoaded();
   if (formValue.room_id === null) {
     formValue.room_id = defaultCampus.value
   }
@@ -202,9 +198,7 @@ const handleSubmit = async () => {
 
   try {
     loading.value = true
-    await Promise.all(results.map((s) => {
-      return Api.post('/api/admin/service-dates', s)
-    }))
+    await schedule.createMany(results)
     message.success("提交成功啦")
     if (formValue.room_id !== null) {
       fetchUnavailableDates(formValue.room_id)

@@ -1,12 +1,12 @@
 <template>
   <PageWrapper title="服务时间管理">
-    <div v-if="Object.keys(dateGroup.groups).length > 0">
+    <div v-if="Object.keys(groups).length > 0">
       <div v-for="date in sortedDateKeys" :key="date" class="date-section">
         <div class="date-header">
           {{ date }}<span class="weekday">{{ formatWeekday(date) }}</span>
         </div>
         <div class="schedule-list">
-          <div v-for="item in dateGroup.groups[date]" :key="item.id" class="schedule-row">
+          <div v-for="item in groups[date]" :key="item.id" class="schedule-row">
             <span class="room-name">{{ roomName(item.room_id) }}</span>
             <span class="service-info">{{ item.title }}<span class="time">{{ formatTime(item.startTime) }} - {{ formatTime(item.endTime) }}</span></span>
             <span class="count">{{ item.count }}/{{ item.capacity }}</span>
@@ -41,25 +41,16 @@
 </template>
 
 <script lang="ts" setup>
-import Api from '@/utils/Api';
 import { AxiosError } from 'axios';
 import type API from "@/store/api";
-import store, { load } from "@/store";
-import { onMounted, reactive, computed } from 'vue';
+import { rooms, schedule } from "@/store";
+import { onMounted, computed } from 'vue';
 import { useDialog, useMessage } from 'naive-ui';
 import PlaylistAddFilled from '@vicons/material/PlaylistAddFilled';
 import { useRouter } from 'vue-router';
 import PageWrapper from '@/components/PageWrapper.vue';
 
 const router = useRouter();
-
-const dateGroup = reactive({
-  groups: {} as { [k: string]: API.ServiceDate[] }
-});
-
-const sortedDateKeys = computed(() => {
-  return Object.keys(dateGroup.groups).sort()
-})
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
@@ -78,29 +69,33 @@ const formatWeekday = (iso: string) => {
   return weekdays[d.getDay()]
 }
 
+const groups = computed(() => {
+  const result: { [k: string]: API.ServiceDate[] } = {}
+  for (const item of schedule.state.list) {
+    const date = formatDate(item.date)
+    if (!result[date]) {
+      result[date] = []
+    }
+    result[date].push(item)
+  }
+  Object.values(result).forEach(items => {
+    items.sort((a, b) => a.startTime.localeCompare(b.startTime))
+  })
+  return result
+})
+
+const sortedDateKeys = computed(() => {
+  return Object.keys(groups.value).sort()
+})
+
 const roomName = (roomId: number) => {
-  const room = store.campusList.find(r => r.id === roomId)
+  const room = rooms.state.list.find(r => r.id === roomId)
   return room?.name ?? `校区#${roomId}`
 }
 
 onMounted(async () => {
-  if (!store.campusList.length) {
-    await load();
-  }
-
-  const res = await Api.get<{ items: API.ServiceDate[]; total: number; page: number; pageSize: number }>('/api/admin/service-dates');
-
-  res.data.items.forEach((item) => {
-    const date = formatDate(item.date);
-    if (!dateGroup.groups[date]) {
-      dateGroup.groups[date] = [];
-    }
-    dateGroup.groups[date].push(item);
-  });
-
-  Object.values(dateGroup.groups).forEach(items => {
-    items.sort((a, b) => a.startTime.localeCompare(b.startTime))
-  })
+  await rooms.ensureLoaded()
+  await schedule.ensureLoaded()
 })
 
 const dialog = useDialog();
@@ -118,7 +113,7 @@ const handleDelete = (item: API.ServiceDate) => {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await Api.delete(`/api/admin/service-dates/${item.id}`);
+        await schedule.remove(item.id);
         message.success('已删除')
       } catch (err) {
         const axiosErr = err as AxiosError
