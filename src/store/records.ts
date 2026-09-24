@@ -123,6 +123,14 @@ const revertRecord = async (id: number) => {
   return res.data
 }
 
+// Refetch a single record and update the store. Used after a failed revert so
+// the revertible fields reflect the server rather than a stale client view.
+const reloadRecord = async (id: number) => {
+  const res = await Api.get<API.Record>(`/api/admin/records/${id}`)
+  state.items[id] = res.data
+  return res.data
+}
+
 const filterRecord = (record: API.Record, filters: typeof state.filters) => {
   let result = true
   for (const key in filters) {
@@ -188,4 +196,5 @@ export default reactive({
   markReferred,
   markNoShow,
   revertRecord,
+  reloadRecord,
 })

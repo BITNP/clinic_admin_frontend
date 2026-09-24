@@ -92,12 +92,12 @@
     </n-space>
 
     <!-- revert button: undo the latest action while it is inside the 5-min window -->
-    <n-space v-if="canRevert">
-      <n-button style="width: 150px" :disabled="loading" @click="handleRevert">
+    <n-space v-if="revertVisible">
+      <n-button style="width: 150px" :disabled="loading || revertExpired" @click="handleRevert">
         <template #icon>
           <HistoryFilled />
         </template>
-        后悔药{{ (record?.revertible_count ?? 0) > 1 ? ` (${record?.revertible_count})` : "" }}
+        后悔药{{ (record?.revertible_count ?? 0) > 1 ? ` (${record?.revertible_count})` : "" }}{{ revertRemaining !== null ? ` · ${revertRemaining}s` : "" }}
       </n-button>
     </n-space>
   </n-space>
@@ -282,12 +282,21 @@ onUnmounted(() => {
   if (clock) clearInterval(clock)
 })
 
-// Visible while the backend says the latest action is still inside the
-// window and the local clock has not passed its deadline.
-const canRevert = computed(() => {
-  if (!props.record?.revertible) return false
-  if (!props.record.revertible_until) return true
-  return new Date(props.record.revertible_until).getTime() > now.value
+// Shown whenever the backend reports the viewer has an action they can still
+// undo. Once the deadline passes the button stays visible but disabled, so the
+// window is observable instead of silently vanishing.
+const revertVisible = computed(() => !!props.record?.revertible)
+
+const revertExpired = computed(() => {
+  if (!props.record?.revertible_until) return false
+  return new Date(props.record.revertible_until).getTime() <= now.value
+})
+
+// Whole seconds left in the window, or null when there is no deadline.
+const revertRemaining = computed<number | null>(() => {
+  if (!props.record?.revertible_until) return null
+  const left = new Date(props.record.revertible_until).getTime() - now.value
+  return left > 0 ? Math.ceil(left / 1000) : 0
 })
 
 const handleRevert = async () => {
@@ -297,6 +306,9 @@ const handleRevert = async () => {
     await records.revertRecord(props.record.id)
     message.success('Back to Future')
   } catch (err) {
+    // A 409 means the action was superseded or the window lapsed; refetch so
+    // the button reflects the server instead of the local clock.
+    await records.reloadRecord(props.record.id).catch(() => {})
     const status = (err as { response?: { status?: number } })?.response?.status
     message.error(status === 409 ? '时间已经流走了' : '时间机器坏了qwq')
   } finally {
