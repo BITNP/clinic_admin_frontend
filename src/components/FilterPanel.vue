@@ -8,6 +8,12 @@
       <n-date-picker v-model:value="selectedDate" type="date" clearable :disabled="isToday" style="flex: 1" />
     </div>
   </n-form-item>
+  <n-form-item label="状态">
+    <div style="display: flex; gap: 8px; width: 100%;">
+      <n-button :type="status === 'pending' ? 'primary' : 'default'" @click="togglePending" size="small">待确认</n-button>
+      <n-select v-model:value="status" :options="statusList" style="flex: 1" />
+    </div>
+  </n-form-item>
   <n-space style="padding: 8px 0">
     <n-button type="primary" @click="() => {
       records.state.filters = generateFilters()
@@ -21,6 +27,7 @@
 <script setup lang="ts">
 import { records, rooms } from "@/store";
 import type API from "@/store/api";
+import { RECORD_STATUS_DESC } from "@/utils/constants";
 import { onMounted, ref, watch } from "vue"
 
 const campus = ref<string>("all")
@@ -31,6 +38,12 @@ const campusList = ref<{
   label: "全部",
   value: "all"
 }])
+
+const status = ref<string>("all")
+const statusList: { label: string, value: string }[] = [
+  { label: "全部", value: "all" },
+  ...Object.entries(RECORD_STATUS_DESC).map(([value, label]) => ({ label, value })),
+]
 
 const isToday = ref(false)
 const selectedDate = ref<number | null>(null)
@@ -48,8 +61,16 @@ const toggleToday = () => {
   isToday.value = !isToday.value
 }
 
+// Shortcut beside the status select: click toggles the pending (待确认) filter,
+// clicking again clears it.
+const togglePending = () => {
+  status.value = status.value === "pending" ? "all" : "pending"
+  records.state.filters = generateFilters()
+}
+
 onMounted(() => {
   campus.value = records.state.filters["campus"] ? records.state.filters["campus"][0].value : "all"
+  status.value = records.state.filters["status"] ? records.state.filters["status"][0].value : "all"
 
   const dateFilter = records.state.filters["date"]
   if (dateFilter && dateFilter.length > 0) {
@@ -69,6 +90,7 @@ onMounted(() => {
 watch(() => records.state.filters, (filters) => {
   if (Object.keys(filters).length === 0) {
     campus.value = "all"
+    status.value = "all"
     isToday.value = false
     selectedDate.value = null
   }
@@ -87,6 +109,20 @@ const generateFilters = () => {
   else {
     filters["campus"].push({
       value: campus.value,
+      filter: () => true
+    })
+  }
+
+  if (!filters["status"]) filters["status"] = []
+  if (status.value !== "all") {
+    filters["status"].push({
+      value: status.value,
+      filter: (ele) => ele.status === status.value
+    })
+  }
+  else {
+    filters["status"].push({
+      value: status.value,
       filter: () => true
     })
   }
