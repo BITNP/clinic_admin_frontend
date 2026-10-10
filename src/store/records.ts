@@ -28,8 +28,12 @@ const state = reactive({
   loading: false,
 })
 
+const fetchPageData = async (target: number) => {
+  return (await Api.get<ListResponse<API.Record>>(`/api/admin/records?page=${target}`)).data
+}
+
 const fetchPage = async (target: number) => {
-  const response = (await Api.get<ListResponse<API.Record>>(`/api/admin/records?page=${target}`)).data
+  const response = await fetchPageData(target)
   response.items.forEach((record) => {
     state.items[record.id] = record
   })
@@ -49,18 +53,26 @@ const loadMore = async () => {
 }
 
 // Reload every page that has already been loaded, preserving list depth and filters.
+// Records are fetched into a fresh map and swapped in at the end so the list is never
+// momentarily emptied; that keeps the sidebar's scroll position intact during the
+// background (auto) refresh. A manually reloaded page starts empty, so it still
+// opens at the top.
 const refresh = async () => {
   if (state.loading) return
   state.loading = true
   try {
     await Auth.ready()
     const pages = Math.max(state.loadedPages, 1)
-    state.items = {}
-    state.page = 1
-    state.loadedPages = 0
+    const next: typeof state.items = {}
     for (let target = 1; target <= pages; target++) {
-      await fetchPage(target)
+      const response = await fetchPageData(target)
+      response.items.forEach((record) => {
+        next[record.id] = record
+      })
     }
+    state.items = next
+    state.loadedPages = pages
+    state.page = pages + 1
   } finally {
     state.loading = false
   }
