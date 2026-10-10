@@ -5,7 +5,7 @@
   <n-form-item label="时间">
     <div style="display: flex; gap: 8px; width: 100%;">
       <n-button :type="isToday ? 'primary' : 'default'" @click="toggleToday" size="small">今天</n-button>
-      <n-date-picker v-model:value="selectedDate" type="date" clearable :disabled="isToday" style="flex: 1" />
+      <n-date-picker v-model:value="selectedDate" type="date" clearable style="flex: 1" />
     </div>
   </n-form-item>
   <n-form-item label="状态">
@@ -28,7 +28,7 @@
 import { records, rooms } from "@/store";
 import type API from "@/store/api";
 import { RECORD_STATUS_DESC } from "@/utils/constants";
-import { onMounted, ref, watch } from "vue"
+import { computed, onMounted, ref, watch } from "vue"
 
 const campus = ref<string>("all")
 const campusList = ref<{
@@ -45,20 +45,28 @@ const statusList: { label: string, value: string }[] = [
   ...Object.entries(RECORD_STATUS_DESC).map(([value, label]) => ({ label, value })),
 ]
 
-const isToday = ref(false)
 const selectedDate = ref<number | null>(null)
 
-watch(isToday, () => {
-  if (isToday.value) selectedDate.value = null
-  records.state.filters = generateFilters()
+// isToday mirrors the picker: the button is active (and the filter applies)
+// only while the selected date is today's date.
+const isToday = computed(() => {
+  if (selectedDate.value === null) return false
+  return new Date(selectedDate.value).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')
 })
+
 watch(selectedDate, () => {
-  if (selectedDate.value) isToday.value = false
   records.state.filters = generateFilters()
 })
 
+// Clicking toggles today's date: fill the picker, or clear it to cancel.
 const toggleToday = () => {
-  isToday.value = !isToday.value
+  if (isToday.value) {
+    selectedDate.value = null
+  } else {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    selectedDate.value = today.getTime()
+  }
 }
 
 // Shortcut beside the status select: click toggles the pending (待确认) filter,
@@ -75,7 +83,9 @@ onMounted(() => {
   const dateFilter = records.state.filters["date"]
   if (dateFilter && dateFilter.length > 0) {
     if (dateFilter[0].value === "today") {
-      isToday.value = true
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      selectedDate.value = today.getTime()
     } else {
       selectedDate.value = new Date(dateFilter[0].value).getTime()
     }
@@ -91,7 +101,6 @@ watch(() => records.state.filters, (filters) => {
   if (Object.keys(filters).length === 0) {
     campus.value = "all"
     status.value = "all"
-    isToday.value = false
     selectedDate.value = null
   }
 }, { deep: true })
