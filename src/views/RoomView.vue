@@ -165,7 +165,11 @@ const handleToggleEnabled = async (room: API.Room, value: boolean) => {
     await rooms.update(room.id, { enabled: value })
     message.success(value ? '已启用' : '已停用')
   } catch (e: any) {
-    message.error(errorText(e, '更新失败'))
+    if (e?.response?.status === 409) {
+      message.error('该场地存在未完成的工单，无法停用')
+    } else {
+      message.error(errorText(e, '更新失败'))
+    }
     await rooms.refresh()
   } finally {
     savingId.value = null
