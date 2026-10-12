@@ -58,6 +58,12 @@ watch(selectedDate, () => {
   records.state.filters = generateFilters()
 })
 
+// Mirror the date picker: changing the status select applies the filter
+// immediately, without needing the 确认 button.
+watch(status, () => {
+  records.state.filters = generateFilters()
+})
+
 // Clicking toggles today's date: fill the picker, or clear it to cancel.
 const toggleToday = () => {
   if (isToday.value) {
@@ -73,7 +79,6 @@ const toggleToday = () => {
 // clicking again clears it.
 const togglePending = () => {
   status.value = status.value === "pending" ? "all" : "pending"
-  records.state.filters = generateFilters()
 }
 
 onMounted(() => {
