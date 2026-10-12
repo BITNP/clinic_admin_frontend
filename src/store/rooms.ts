@@ -43,6 +43,16 @@ const update = async (id: number, payload: Partial<Pick<API.Room, 'name' | 'addr
   await load()
 }
 
+const create = async (payload: Pick<API.Room, 'name' | 'address'>) => {
+  await Api.post<API.Room>('/api/admin/rooms', payload)
+  await load()
+}
+
+const remove = async (id: number) => {
+  await Api.delete(`/api/admin/rooms/${id}`)
+  await load()
+}
+
 const options = computed(() => state.list.map((room) => ({ label: room.name, value: room.id })))
 
 export default reactive({
@@ -53,4 +63,6 @@ export default reactive({
   refresh,
   isLoaded,
   update,
+  create,
+  remove,
 })
