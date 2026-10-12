@@ -1,7 +1,7 @@
 <template>
   <div ref="listDOM" style="margin-top: 64px; overflow: auto; height: calc(100vh - 64px)" @scroll="handleScroll">
     <n-list hoverable clickable v-if="recordCount > 0">
-      <div v-if="Auth.user.value?.role === 'admin'" style="padding: 8px 20px 0">
+      <div v-if="canFilter" style="padding: 8px 20px 0">
         <div role="none" style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;" @click="filterExpanded = !filterExpanded">
           <n-icon :style="{ transition: 'transform 0.2s', transform: filterExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }">
             <ArrowDropDownFilled />
@@ -80,6 +80,10 @@ const filterExpanded = ref(!isPopup.value)
 watch(isPopup, () => {
   filterExpanded.value = !isPopup.value
 })
+// The record filter panel is available to both admins and staff.
+const canFilter = computed(() =>
+  Auth.user.value?.role === 'admin' || Auth.user.value?.role === 'staff'
+)
 const filterCount = computed(() => Object.keys(records.state.filters).length)
 const recordCount = computed(() => Object.keys(records.state.items).length)
 const recordList = computed(() => Object.keys(records.state.items).reverse().map((key) => records.state.items[parseInt(key)]))
