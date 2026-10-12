@@ -11,7 +11,7 @@
       </n-radio-group>
 
       <n-collapse-transition :show="action === 'confirm'">
-        <div style="margin: 0.5em 0;">调整场地</div>
+        <div style="margin: 0.5em 0">调整场地</div>
         <n-select :options="campusList" v-model:value="campusSelect" />
       </n-collapse-transition>
 
@@ -23,23 +23,24 @@
         <n-input type="textarea" placeholder="返厂建议" v-model:value="reasonInput" />
       </n-collapse-transition>
 
-      <n-button :type="action === 'reject' ? 'error' : 'success'" style="width: 150px"
-        @click="handleSubmit">
+      <n-button
+        :type="action === 'reject' ? 'error' : 'success'"
+        style="width: 150px"
+        @click="handleSubmit"
+      >
         提交
       </n-button>
     </n-space>
 
     <!-- confirmed: waiting for arrival -->
     <n-space v-if="record?.status === 'confirmed'">
-      <n-button type="primary" style="width: 150px" :disabled="loading"
-        @click="handleArrive">
+      <n-button type="primary" style="width: 150px" :disabled="loading" @click="handleArrive">
         <template #icon>
           <DoneFilled />
         </template>
         已到诊所
       </n-button>
-      <n-button style="width: 150px" :disabled="loading"
-        @click="handleNoShow">
+      <n-button style="width: 150px" :disabled="loading" @click="handleNoShow">
         <template #icon>
           <PersonOffFilled />
         </template>
@@ -49,8 +50,7 @@
 
     <!-- arrived: ready to start work -->
     <n-space v-if="record?.status === 'arrived'">
-      <n-button type="primary" style="width: 150px" :disabled="loading"
-        @click="handleInProgress">
+      <n-button type="primary" style="width: 150px" :disabled="loading" @click="handleInProgress">
         <template #icon>
           <DoneFilled />
         </template>
@@ -60,16 +60,14 @@
 
     <!-- in_progress: working on it -->
     <n-space v-if="record?.status === 'in_progress'">
-      <n-button type="primary" style="width: 150px" :disabled="loading"
-        @click="handleComplete">
+      <n-button type="primary" style="width: 150px" :disabled="loading" @click="handleComplete">
         <template #icon>
           <DoneFilled />
         </template>
         已完成
       </n-button>
 
-      <n-button style="width: 150px" :disabled="loading"
-        @click="handleReferred">
+      <n-button style="width: 150px" :disabled="loading" @click="handleReferred">
         <template #icon>
           <FactoryFilled />
         </template>
@@ -77,13 +75,21 @@
       </n-button>
     </n-space>
 
-    <!-- completed: add problem reason and solve detail -->
+    <!-- completed: write a single free-form note -->
     <n-space vertical v-if="record?.status === 'completed'">
-      <RepairComment v-model:value="probDescs" label="问题描述" :options="probDescOptions" />
-      <RepairComment v-model:value="repairComment" label="处理方式" :options="repairMethods" />
-      <n-button type="primary" style="width: 150px"
-        :disabled="loading || !probDescs.validate || !repairComment.validate"
-        @click="handleSaveDesc">
+      <div>总结</div>
+      <n-input
+        type="textarea"
+        placeholder="填写总结"
+        :autosize="{ minRows: 3, maxRows: 8 }"
+        v-model:value="summary"
+      />
+      <n-button
+        type="primary"
+        style="width: 150px"
+        :disabled="loading || !summary.trim()"
+        @click="handleSaveDesc"
+      >
         <template #icon>
           <DoneFilled />
         </template>
@@ -97,55 +103,61 @@
         <template #icon>
           <HistoryFilled />
         </template>
-        后悔药{{ (record?.revertible_count ?? 0) > 1 ? ` (${record?.revertible_count})` : "" }}{{ revertRemaining !== null ? ` · ${revertRemaining}s` : "" }}
+        后悔药{{ (record?.revertible_count ?? 0) > 1 ? ` (${record?.revertible_count})` : ''
+        }}{{ revertRemaining !== null ? ` · ${revertRemaining}s` : '' }}
       </n-button>
     </n-space>
   </n-space>
 </template>
 
 <script setup lang="tsx">
-import { records, rooms } from '@/store';
-import type API from '@/store/api';
-import { probDescs as probDescOptions, repairMethods } from '@/utils/constants';
-import DoneFilled from "@vicons/material/DoneFilled";
-import PersonOffFilled from "@vicons/material/PersonOffFilled";
-import HistoryFilled from "@vicons/material/HistoryFilled";
-import FactoryFilled from "@vicons/material/FactoryFilled";
-import { useMessage } from 'naive-ui';
-import { computed, onMounted, onUnmounted, ref, toRaw } from 'vue';
+import { records, rooms } from '@/store'
+import type API from '@/store/api'
+import DoneFilled from '@vicons/material/DoneFilled'
+import PersonOffFilled from '@vicons/material/PersonOffFilled'
+import HistoryFilled from '@vicons/material/HistoryFilled'
+import FactoryFilled from '@vicons/material/FactoryFilled'
+import { useMessage } from 'naive-ui'
+import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 
 const props = defineProps<{
-  record: API.Record | null,
+  record: API.Record | null
   worker: API.IUsers | null
 }>()
 
 const message = useMessage()
 
-const action = ref<"confirm" | "reject" | "refer">("confirm")
-const reasonInput = ref("")
+const action = ref<'confirm' | 'reject' | 'refer'>('confirm')
+const reasonInput = ref('')
 const loading = ref(false)
-const repairComment = ref({
-  validate: false,
-  value: "",
-  display: ""
-})
-const probDescs = ref({
-  validate: false,
-  value: "",
-  display: ""
-})
+const summary = ref('')
 
-const campusList = computed(() => rooms.state.list.map((campus) => ({
-  label: campus.name,
-  value: campus.id
-})))
+// This component instance is reused while navigating between tickets, so the
+// 总结 box must be seeded from the record on screen instead of keeping whatever
+// the previous ticket typed. Keying on id + status (not the record object)
+// re-seeds when the ticket or its status changes, while background refreshes
+// and the save response — which replace the object — cannot clobber the box.
+watch(
+  () => [props.record?.id, props.record?.status],
+  () => {
+    summary.value = props.record?.worker_desc ?? ''
+  },
+  { immediate: true }
+)
+
+const campusList = computed(() =>
+  rooms.state.list.map((campus) => ({
+    label: campus.name,
+    value: campus.id
+  }))
+)
 const campusSelect = ref<number | null>(null)
 
 const handleSubmit = async () => {
   if (!props.record) return
   const record = toRaw(props.record)
 
-  if (action.value === "reject") {
+  if (action.value === 'reject') {
     if (!reasonInput.value) {
       message.error('请填写拒绝理由')
       return
@@ -159,7 +171,7 @@ const handleSubmit = async () => {
     } finally {
       loading.value = false
     }
-  } else if (action.value === "refer") {
+  } else if (action.value === 'refer') {
     loading.value = true
     try {
       await records.markReferred(record.id, reasonInput.value || undefined)
@@ -241,12 +253,9 @@ const handleSaveDesc = async () => {
   if (!props.record) return
   loading.value = true
   try {
-    const workerDesc = [
-      probDescs.value.display ? `问题描述: ${probDescs.value.display}` : "",
-      repairComment.value.display ? `处理方式: ${repairComment.value.display}` : "",
-    ].filter(Boolean).join("\n")
+    const workerDesc = summary.value.trim()
     if (workerDesc) {
-      await records.updateStatus(props.record.id, "completed", workerDesc)
+      await records.updateStatus(props.record.id, 'completed', workerDesc)
     }
     message.success('保存成功')
   } catch {
