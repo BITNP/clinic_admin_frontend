@@ -20,7 +20,7 @@ const state = reactive({
 const load = async () => {
   state.loading = true
   try {
-    const res = await Api.get<ListResponse<API.Room>>('/api/admin/rooms')
+    const res = await Api.get<ListResponse<API.Room>>('/api/admin/rooms?pageSize=1000')
     state.list = res.data.items
     state.loaded = true
   } finally {
@@ -38,6 +38,11 @@ const refresh = async () => {
 
 const isLoaded = () => state.loaded
 
+const update = async (id: number, payload: Partial<Pick<API.Room, 'name' | 'address' | 'enabled'>>) => {
+  await Api.put<API.Room>(`/api/admin/rooms/${id}`, payload)
+  await load()
+}
+
 const options = computed(() => state.list.map((room) => ({ label: room.name, value: room.id })))
 
 export default reactive({
@@ -47,4 +52,5 @@ export default reactive({
   ensureLoaded,
   refresh,
   isLoaded,
+  update,
 })

@@ -18,6 +18,19 @@
       </template>
       <template #right v-if="!props.disabled">
         <n-space :align="'center'" v-if="!lt600px">
+          <n-popover trigger="hover" v-if="isAdmin">
+            <template #trigger>
+              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
+                @click="router.push('/rooms')">
+                <template #icon>
+                  <n-icon>
+                    <MeetingRoomFilled />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            <span>场地管理</span>
+          </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
               <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
@@ -154,20 +167,31 @@ import EditCalendarFilled from "@vicons/material/EditCalendarFilled"
 import EditNotificationsFilled from "@vicons/material/EditNotificationsFilled"
 import BadgeFilled from "@vicons/material/BadgeFilled"
 import CalendarMonthFilled from "@vicons/material/CalendarMonthFilled"
+import MeetingRoomFilled from "@vicons/material/MeetingRoomFilled"
 import MoreVertFilled from "@vicons/material/MoreVertFilled"
 import LogOutFilled from "@vicons/material/LogOutFilled"
 import { lt600px } from "@/utils/Responsive";
-import { h, type Component } from "vue";
+import { h, computed, type Component } from "vue";
 import { NIcon, useMessage } from "naive-ui";
 
 const router = useRouter()
 const message = useMessage()
 
+const isAdmin = computed(() => Auth.user.value?.role === 'admin')
+
 const renderIcon = (icon: Component) => {
   return () => h(NIcon, null, { default: () => h(icon) })
 }
 
-const menu = [
+const menu = computed(() => [
+  ...(isAdmin.value
+    ? [{
+        title: "场地管理",
+        key: "rooms",
+        icon: renderIcon(MeetingRoomFilled),
+        onClick: () => router.push("/rooms")
+      }]
+    : []),
   {
     title: "编辑时间",
     key: "schedule",
@@ -198,11 +222,11 @@ const menu = [
     icon: renderIcon(LogOutFilled),
     onClick: () => { Sync.stop(); Auth.logout(); router.push("/login") }
   }
-]
+])
 
 const handleMenuClick = (key: string) => {
   console.debug(key)
-  const item = menu.find(item => item.key === key)
+  const item = menu.value.find(item => item.key === key)
   if (item) {
     item.onClick()
   }
