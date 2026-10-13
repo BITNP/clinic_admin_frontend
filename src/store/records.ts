@@ -41,15 +41,27 @@ const fetchPage = async (target: number) => {
   state.page = target + 1
 }
 
+// Serialize list requests. A refresh must run after an in-flight request, since
+// that request may have read its snapshot before the change that triggered sync.
+let listLoad: Promise<void> = Promise.resolve()
+
+const queueListLoad = (load: () => Promise<void>) => {
+  state.loading = true
+  // A failed previous load must not block the next one. Its own caller still
+  // receives the rejection; sync can retry a failed refresh as usual.
+  const result = listLoad.then(load, load)
+  listLoad = result
+  return result.finally(() => {
+    if (listLoad === result) state.loading = false
+  })
+}
+
 const loadMore = async () => {
   if (state.loading) return
-  state.loading = true
-  try {
+  await queueListLoad(async () => {
     await Auth.ready()
     await fetchPage(state.page)
-  } finally {
-    state.loading = false
-  }
+  })
 }
 
 // Reload every page that has already been loaded, preserving list depth and filters.
@@ -58,9 +70,7 @@ const loadMore = async () => {
 // background (auto) refresh. A manually reloaded page starts empty, so it still
 // opens at the top.
 const refresh = async () => {
-  if (state.loading) return
-  state.loading = true
-  try {
+  await queueListLoad(async () => {
     await Auth.ready()
     const pages = Math.max(state.loadedPages, 1)
     const next: typeof state.items = {}
@@ -73,9 +83,7 @@ const refresh = async () => {
     state.items = next
     state.loadedPages = pages
     state.page = pages + 1
-  } finally {
-    state.loading = false
-  }
+  })
 }
 
 const ensureLoaded = async () => {
@@ -83,7 +91,8 @@ const ensureLoaded = async () => {
   await refresh()
 }
 
-const isLoaded = () => state.loadedPages > 0
+// Include the initial load so sync queues changes that arrive during it.
+const isLoaded = () => state.loadedPages > 0 || state.loading
 
 const updateStatus = async (id: number, status: string, worker_desc?: string) => {
   const payload: Record<string, unknown> = { status }
