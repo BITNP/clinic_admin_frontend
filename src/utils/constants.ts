@@ -9,6 +9,18 @@ export const RECORD_STATUS_DESC: Record<string, string> = {
   'no_show': '未到诊所',
 }
 
+// LIQUID_METAL_STATUS_DESC labels the liquid-metal verdict returned by the
+// admin record API. The liquid_metal_* keys are the tagger's component-level
+// tags, kept here for when the API exposes them.
+export const LIQUID_METAL_STATUS_DESC: Record<string, string> = {
+  'liquid_metal': '液金',
+  'to_verify': '液金待核实',
+  'liquid_metal_cpu': '液金 CPU',
+  'liquid_metal_gpu': '液金 GPU',
+  'liquid_metal_cpu_gpu': '液金 CPU/GPU',
+  'liquid_metal_to_verify': '液金待核实',
+}
+
 // RECORD_TAG_DESC shortens each record tag title to a compact label for the
 // badge UI. Keys match the titles seeded in clinic_record_tag.
 export const RECORD_TAG_DESC: Record<string, string> = {

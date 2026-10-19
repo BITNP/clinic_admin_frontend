@@ -3,7 +3,14 @@
     <n-text type="primary" style="display: inline-block; width: 24px;">#</n-text>
     <n-text>{{ props.record?.id }}</n-text>
   </n-h1>
-  <StatusBadge :status="record?.status" />
+  <n-space align="center">
+    <StatusBadge :status="record?.status" />
+    <StatusBadge
+      v-if="showLiquidMetal"
+      status="error"
+      :text="liquidMetalText"
+    />
+  </n-space>
 
   <n-h2 prefix="bar" align-text>
     <n-text>问题描述</n-text>
@@ -54,8 +61,32 @@
 
 <script setup lang="ts">
 import type API from "@/store/api"
+import { computed } from "vue"
+import { LIQUID_METAL_STATUS_DESC } from "@/utils/constants"
+
 const props = defineProps<{
   record: API.Record | null,
   owner: API.IUsers | null
 }>()
+
+// Values that indicate liquid metal (or a liquid-metal verdict awaiting
+// verification). The liquid_metal_* component tags are included for when the
+// API exposes them.
+const LIQUID_METAL_STATUSES = new Set([
+  "liquid_metal",
+  "to_verify",
+  "liquid_metal_cpu",
+  "liquid_metal_gpu",
+  "liquid_metal_cpu_gpu",
+  "liquid_metal_to_verify",
+])
+
+const showLiquidMetal = computed(() =>
+  LIQUID_METAL_STATUSES.has(props.record?.liquid_metal_status ?? "")
+)
+
+const liquidMetalText = computed(() => {
+  const status = props.record?.liquid_metal_status ?? ""
+  return LIQUID_METAL_STATUS_DESC[status] ?? status
+})
 </script>
