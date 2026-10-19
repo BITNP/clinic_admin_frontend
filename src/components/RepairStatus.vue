@@ -103,8 +103,7 @@
         <template #icon>
           <HistoryFilled />
         </template>
-        后悔药{{ (record?.revertible_count ?? 0) > 1 ? ` (${record?.revertible_count})` : ''
-        }}{{ revertRemaining !== null ? ` · ${revertRemaining}s` : '' }}
+        后悔药{{ revertRemaining !== null ? ` · ${revertRemaining}s` : '' }}
       </n-button>
     </n-space>
   </n-space>
