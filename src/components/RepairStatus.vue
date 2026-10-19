@@ -130,16 +130,21 @@ const action = ref<'confirm' | 'reject' | 'refer'>('confirm')
 const reasonInput = ref('')
 const loading = ref(false)
 const summary = ref('')
+const campusSelect = ref<number | null>(null)
 
-// This component instance is reused while navigating between tickets, so the
-// 总结 box must be seeded from the record on screen instead of keeping whatever
-// the previous ticket typed. Keying on id + status (not the record object)
-// re-seeds when the ticket or its status changes, while background refreshes
-// and the save response — which replace the object — cannot clobber the box.
+// This component instance is reused while navigating between tickets, so all
+// ticket-scoped form state must be re-seeded from the record on screen instead
+// of keeping whatever the previous ticket typed. Keying on id + status (not the
+// record object) re-seeds when the ticket or its status changes, while
+// background refreshes and the save response — which replace the object —
+// cannot clobber what the user is currently editing.
 watch(
   () => [props.record?.id, props.record?.status],
   () => {
     summary.value = props.record?.worker_desc ?? ''
+    reasonInput.value = ''
+    action.value = 'confirm'
+    campusSelect.value = null
   },
   { immediate: true }
 )
@@ -150,7 +155,6 @@ const campusList = computed(() =>
     value: campus.id
   }))
 )
-const campusSelect = ref<number | null>(null)
 
 const handleSubmit = async () => {
   if (!props.record) return
