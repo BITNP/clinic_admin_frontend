@@ -47,6 +47,7 @@ namespace API {
     model: string
     password: string
     tag: string
+    liquid_metal_status: string
     arrive_time: string | null
     finish_time: string | null
     worker_id: number | null

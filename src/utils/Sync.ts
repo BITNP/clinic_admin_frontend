@@ -3,8 +3,11 @@ import Api from './Api'
 import Auth from './Auth'
 import { refreshLoaded, type StorePart } from '@/store'
 
-// How often the backend counters are polled, in milliseconds.
-const SYNC_INTERVAL_MS = 10_000
+// Fallback poll interval in milliseconds, used until the backend config loads.
+const DEFAULT_SYNC_INTERVAL_MS = 10_000
+
+// setTimeout stores its delay in a signed 32-bit integer.
+const MAX_TIMEOUT_MS = 2_147_483_647
 
 // localStorage key holding the counters this browser last saw.
 const CACHE_KEY = 'clinic.sync.counters'
@@ -20,6 +23,9 @@ const GROUP_TO_PART: Record<string, StorePart> = {
 }
 
 type Counters = Record<string, number>
+
+// SyncConfig is the polling period reported by GET /api/admin/sync/config.
+type SyncConfig = { interval_ms?: number }
 
 const loadCache = (): Counters => {
   try {
@@ -82,6 +88,8 @@ class SyncBase {
   private inFlight = false
   // Parts that changed while editing was in progress and still need refreshing.
   private pendingParts = new Set<StorePart>()
+  // How often to poll, from the backend config. 0 disables periodic polling.
+  private intervalMs = DEFAULT_SYNC_INTERVAL_MS
 
   // start begins polling. Safe to call more than once.
   async start() {
@@ -96,11 +104,12 @@ class SyncBase {
 
     // Use any cached counters until a real fetch succeeds.
     this.counters.value = loadCache()
-    try {
-      await this.fetch()
-    } catch (e) {
-      console.error('sync: initial fetch failed', e)
-    }
+    await Promise.all([
+      this.fetchConfig(),
+      this.fetch().catch((e) => {
+        console.error('sync: initial fetch failed', e)
+      }),
+    ])
     this.schedule()
   }
 
@@ -123,8 +132,23 @@ class SyncBase {
   }
 
   private schedule() {
-    if (!this.running) return
-    this.timer = setTimeout(() => this.tick(), SYNC_INTERVAL_MS)
+    if (!this.running || this.intervalMs <= 0) return
+    this.timer = setTimeout(() => this.tick(), this.intervalMs)
+  }
+
+  // fetchConfig asks the backend how often to poll. Any failure (older
+  // backend without the endpoint, network error, malformed value) keeps the
+  // default so polling still works.
+  private async fetchConfig() {
+    try {
+      const res = await Api.get<SyncConfig>('/api/admin/sync/config')
+      const raw = res.data?.interval_ms
+      if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+        this.intervalMs = Math.min(raw, MAX_TIMEOUT_MS)
+      }
+    } catch (e) {
+      console.debug('sync: config fetch failed, using default interval', e)
+    }
   }
 
   private handleVisibility = () => {
