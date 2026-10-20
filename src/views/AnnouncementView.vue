@@ -10,11 +10,11 @@
       </n-grid-item>
     </n-grid>
 
-    <template v-if="expiredAnnouncements.length > 0">
-      <n-divider>已过期</n-divider>
+    <template v-if="disabledAnnouncements.length > 0">
+      <n-divider>已停用</n-divider>
       <n-grid cols="1 600:2" :x-gap="8" :y-gap="8">
-        <n-grid-item v-for="announce in expiredAnnouncements" :key="announce.id">
-          <n-card class="announcement-card expired-card" @click="edit(announce)">
+        <n-grid-item v-for="announce in disabledAnnouncements" :key="announce.id">
+          <n-card class="announcement-card disabled-card" @click="edit(announce)">
             <n-thing :title="announce.title">
               {{ announce.brief }}
             </n-thing>
@@ -49,12 +49,16 @@ const todayStr = (() => {
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
 })()
 
+// An announcement is inactive when it is disabled or expired.
+const isActive = (a: API.IAnnouncement) =>
+  a.enabled && a.expireDate >= todayStr
+
 const validAnnouncements = computed(() =>
-  announcements.list.filter(a => a.expireDate >= todayStr)
+  announcements.list.filter(isActive)
 )
 
-const expiredAnnouncements = computed(() =>
-  announcements.list.filter(a => a.expireDate < todayStr)
+const disabledAnnouncements = computed(() =>
+  announcements.list.filter(a => !isActive(a))
 )
 
 onMounted(async () => {
@@ -75,7 +79,7 @@ const create = () => {
   cursor: pointer;
 }
 
-.expired-card {
+.disabled-card {
   opacity: 0.6;
 }
 </style>

@@ -23,6 +23,11 @@
             :is-date-disabled="isDateDisabled" />
         </n-form-item>
       </n-grid-item>
+      <n-grid-item>
+        <n-form-item label="状态">
+          <n-switch v-model:value="form.enabled" />
+        </n-form-item>
+      </n-grid-item>
     </n-grid>
 
     <n-form-item label="公告正文">
@@ -84,6 +89,7 @@ const defaultAnnouncement: API.IAnnouncement = {
   content: "",
   tag: "normal",
   priority: 0,
+  enabled: true,
   createdTime: "",
   lastEditedTime: "",
   expireDate: (() => {

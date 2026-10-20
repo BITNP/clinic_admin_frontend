@@ -77,6 +77,7 @@ namespace API {
     brief: string
     priority: number
     tag: AnnouncementTags
+    enabled: boolean
     createdTime: string
     lastEditedTime: string
     expireDate: DateString
