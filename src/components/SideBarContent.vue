@@ -2,7 +2,7 @@
   <div ref="listDOM" style="margin-top: 64px; overflow: auto; height: calc(100vh - 64px)" @scroll="handleScroll">
     <n-list hoverable clickable v-if="recordCount > 0">
       <div v-if="canFilter" style="padding: 8px 20px 0">
-        <div role="none" style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;" @click="filterExpanded = !filterExpanded">
+        <div role="none" style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; cursor: pointer; user-select: none;" @click="filterExpanded = !filterExpanded">
           <n-icon :style="{ transition: 'transform 0.2s', transform: filterExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }">
             <ArrowDropDownFilled />
           </n-icon>

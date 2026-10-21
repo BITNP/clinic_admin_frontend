@@ -1,11 +1,11 @@
 <template>
   <n-element class="page-wrapper">
-    <n-grid cols="1 l:2" responsive="screen" x-gap="48" y-gap="0">
-      <n-grid-item>
+    <n-grid cols="1 l:21" responsive="screen" x-gap="48" y-gap="0">
+      <n-grid-item span="13">
         <RecordInfo :record="record" :owner="owner" />
       </n-grid-item>
 
-      <n-grid-item>
+      <n-grid-item span="8">
         <n-h2 prefix="bar" align-text style="margin-top: 28px;">
           处理情况
         </n-h2>
