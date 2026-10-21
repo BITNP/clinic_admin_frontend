@@ -14,13 +14,18 @@
       <n-select v-model:value="status" :options="statusList" style="flex: 1" />
     </div>
   </n-form-item>
+  <n-form-item label="姓名">
+    <n-input
+      v-model:value="realname"
+      placeholder="输入姓名搜索"
+      clearable
+      @clear="applyFilters"
+      @keyup.enter="applyFilters"
+    />
+  </n-form-item>
   <n-space style="padding: 8px 0">
-    <n-button type="primary" @click="() => {
-      records.state.filters = generateFilters()
-    }">确认</n-button>
-    <n-button @click="() => {
-      records.state.filters = {}
-    }">重置</n-button>
+    <n-button type="primary" @click="applyFilters">确认</n-button>
+    <n-button @click="resetFilters">重置</n-button>
   </n-space>
 </template>
 
@@ -46,6 +51,7 @@ const statusList: { label: string, value: string }[] = [
 ]
 
 const selectedDate = ref<number | null>(null)
+const realname = ref<string>('')
 
 // isToday mirrors the picker: the button is active (and the filter applies)
 // only while the selected date is today's date.
@@ -84,6 +90,7 @@ const togglePending = () => {
 onMounted(() => {
   campus.value = records.state.filters["campus"] ? records.state.filters["campus"][0].value : "all"
   status.value = records.state.filters["status"] ? records.state.filters["status"][0].value : "all"
+  realname.value = records.state.realname
 
   const dateFilter = records.state.filters["date"]
   if (dateFilter && dateFilter.length > 0) {
@@ -109,6 +116,17 @@ watch(() => records.state.filters, (filters) => {
     selectedDate.value = null
   }
 }, { deep: true })
+
+const applyFilters = async () => {
+  records.state.filters = generateFilters()
+  await records.search(realname.value)
+}
+
+const resetFilters = async () => {
+  realname.value = ''
+  records.state.filters = {}
+  await records.search('')
+}
 
 const generateFilters = () => {
   let filters = {} as typeof records.state.filters

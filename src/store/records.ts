@@ -21,6 +21,8 @@ const state = reactive({
       filter: (record: API.Record) => boolean
     }[]
   },
+  // Active server-side realname search term. Empty means no search filter.
+  realname: '',
   // next page to fetch for "load more"
   page: 1,
   // highest page reached so far, used to know how much to reload on refresh()
@@ -29,7 +31,11 @@ const state = reactive({
 })
 
 const fetchPageData = async (target: number) => {
-  return (await Api.get<ListResponse<API.Record>>(`/api/admin/records?page=${target}`)).data
+  const params = new URLSearchParams({ page: String(target) })
+  if (state.realname) {
+    params.set('realname', state.realname)
+  }
+  return (await Api.get<ListResponse<API.Record>>(`/api/admin/records?${params.toString()}`)).data
 }
 
 const fetchPage = async (target: number) => {
@@ -89,6 +95,27 @@ const refresh = async () => {
 const ensureLoaded = async () => {
   if (Object.keys(state.items).length > 0) return
   await refresh()
+}
+
+// Switch the server-side realname search and reload the first page. The term
+// is applied inside the queued load so requests that are already in flight
+// keep the term they were created with.
+const search = async (realname: string) => {
+  const term = realname.trim()
+  await queueListLoad(async () => {
+    await Auth.ready()
+    if (term === state.realname) return
+
+    state.realname = term
+    const response = await fetchPageData(1)
+    const next: typeof state.items = {}
+    response.items.forEach((record) => {
+      next[record.id] = record
+    })
+    state.items = next
+    state.loadedPages = 1
+    state.page = 2
+  })
 }
 
 // Include the initial load so sync queues changes that arrive during it.
@@ -206,6 +233,7 @@ export default reactive({
   isNextRecordExist,
   loadMore,
   refresh,
+  search,
   ensureLoaded,
   isLoaded,
   updateStatus,
