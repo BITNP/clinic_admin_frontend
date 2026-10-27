@@ -11,6 +11,7 @@
         </n-h2>
         <RepairInfo :worker="worker" :record="record" />
         <RepairStatus :worker="worker" :record="record" />
+        <RecordNotePanel v-if="record" :record="record" />
       </n-grid-item>
     </n-grid>
 
@@ -40,6 +41,7 @@ import { onMounted, onUpdated, ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import ArrowBackFilled from "@vicons/material/ArrowBackFilled";
 import ArrowForwardFilled from "@vicons/material/ArrowForwardFilled";
+import RecordNotePanel from "@/components/RecordNotePanel.vue";
 
 const router = useRouter()
 const message = useMessage()

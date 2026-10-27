@@ -121,13 +121,12 @@ const search = async (realname: string) => {
 // Include the initial load so sync queues changes that arrive during it.
 const isLoaded = () => state.loadedPages > 0 || state.loading
 
-const updateStatus = async (id: number, status: string, worker_desc?: string) => {
-  const payload: Record<string, unknown> = { status }
-  if (worker_desc !== undefined) {
-    payload.worker_desc = worker_desc
-  }
-  const res = await Api.put<API.Record>(`/api/admin/records/${id}`, payload)
+const updateWorkerDesc = async (id: number, workerDesc: string) => {
+  const res = await Api.put<API.Record>(`/api/admin/records/${id}`, {
+    worker_desc: workerDesc
+  })
   state.items[id] = res.data
+  return res.data
 }
 
 const markConfirmed = async (id: number) => {
@@ -236,7 +235,7 @@ export default reactive({
   search,
   ensureLoaded,
   isLoaded,
-  updateStatus,
+  updateWorkerDesc,
   markConfirmed,
   markArrived,
   markInProgress,

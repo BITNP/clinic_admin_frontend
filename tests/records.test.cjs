@@ -1,3 +1,4 @@
+/* eslint-env node */
 const assert = require('node:assert/strict')
 const { readFileSync } = require('node:fs')
 const { test } = require('node:test')
@@ -16,6 +17,7 @@ function setup() {
   const exports = {}
   vm.runInNewContext(source, {
     exports,
+    URLSearchParams,
     require(name) {
       if (name === 'vue') return require('vue')
       if (name === '@/utils/Auth') return { default: { ready: async () => {} } }
@@ -23,9 +25,21 @@ function setup() {
         get(url) {
           return new Promise((resolve, reject) => {
             requests.push({
+              method: 'get',
               url, reject,
               respond(ids) {
                 resolve({ data: { items: ids.map(id => ({ id })) } })
+              }
+            })
+          })
+        },
+        put(url, body) {
+          return new Promise((resolve, reject) => {
+            requests.push({
+              method: 'put',
+              url, body, reject,
+              respond(record) {
+                resolve({ data: record })
               }
             })
           })
@@ -38,6 +52,35 @@ function setup() {
 }
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
+
+test('updateWorkerDesc sends only worker_desc and stores the response', async () => {
+  const { records, requests } = setup()
+  records.state.items = {
+    7: { id: 7, status: 'in_progress', worker_desc: 'old note', revertible: false }
+  }
+
+  const save = records.updateWorkerDesc(7, 'new note')
+  await settle()
+
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].method, 'put')
+  assert.equal(requests[0].url, '/api/admin/records/7')
+  assert.equal(requests[0].body.worker_desc, 'new note')
+  assert.equal(Object.keys(requests[0].body).length, 1)
+
+  requests[0].respond({
+    id: 7,
+    status: 'in_progress',
+    worker_desc: 'new note',
+    revertible: true,
+    revertible_until: '2026-10-27T12:05:00Z'
+  })
+  await save
+
+  assert.equal(records.state.items[7].worker_desc, 'new note')
+  assert.equal(records.state.items[7].status, 'in_progress')
+  assert.equal(records.state.items[7].revertible, true)
+})
 
 test('refresh during load more fetches page one again and includes new tickets', async () => {
   const { records, requests } = setup()

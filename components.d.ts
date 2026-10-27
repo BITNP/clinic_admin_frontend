@@ -60,6 +60,8 @@ declare module 'vue' {
     PageWrapper: typeof import('./src/components/PageWrapper.vue')['default']
     RecordInfo: typeof import('./src/components/RecordInfo.vue')['default']
     RecordItem: typeof import('./src/components/RecordItem.vue')['default']
+    RecordNoteEditorDialog: typeof import('./src/components/RecordNoteEditorDialog.vue')['default']
+    RecordNotePanel: typeof import('./src/components/RecordNotePanel.vue')['default']
     RepairComment: typeof import('./src/components/RepairComment.vue')['default']
     RepairInfo: typeof import('./src/components/RepairInfo.vue')['default']
     RepairStatus: typeof import('./src/components/RepairStatus.vue')['default']

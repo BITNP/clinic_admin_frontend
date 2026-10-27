@@ -75,28 +75,7 @@
       </n-button>
     </n-space>
 
-    <!-- completed: write a single free-form note -->
-    <n-space vertical v-if="record?.status === 'completed'">
-      <div>总结</div>
-      <n-input
-        type="textarea"
-        placeholder="填写总结"
-        :autosize="{ minRows: 3, maxRows: 8 }"
-        v-model:value="summary"
-      />
-      <n-button
-        type="primary"
-        style="width: 150px"
-        :disabled="loading || !summary.trim()"
-        @click="handleSaveDesc"
-      >
-        <template #icon>
-          <DoneFilled />
-        </template>
-        保存
-      </n-button>
-    </n-space>
-
+    <!-- completed: the lifecycle is finished; notes live in RecordNotePanel -->
     <!-- revert button: undo the latest action while it is inside the 5-min window -->
     <n-space v-if="revertVisible">
       <n-button style="width: 150px" :disabled="loading || revertExpired" @click="handleRevert">
@@ -129,7 +108,6 @@ const message = useMessage()
 const action = ref<'confirm' | 'reject' | 'refer'>('confirm')
 const reasonInput = ref('')
 const loading = ref(false)
-const summary = ref('')
 const campusSelect = ref<number | null>(null)
 
 // This component instance is reused while navigating between tickets, so all
@@ -141,7 +119,6 @@ const campusSelect = ref<number | null>(null)
 watch(
   () => [props.record?.id, props.record?.status],
   () => {
-    summary.value = props.record?.worker_desc ?? ''
     reasonInput.value = ''
     action.value = 'confirm'
     campusSelect.value = null
@@ -247,22 +224,6 @@ const handleComplete = async () => {
     message.success('处理完成')
   } catch {
     message.error('提交失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSaveDesc = async () => {
-  if (!props.record) return
-  loading.value = true
-  try {
-    const workerDesc = summary.value.trim()
-    if (workerDesc) {
-      await records.updateStatus(props.record.id, 'completed', workerDesc)
-    }
-    message.success('保存成功')
-  } catch {
-    message.error('保存失败')
   } finally {
     loading.value = false
   }
