@@ -81,9 +81,14 @@ namespace API {
     max_size_bytes: number
   }
 
+  type RecordPhotoOrderRequest = {
+    expected_photo_ids: number[]
+    photo_ids: number[]
+  }
+
   type RecordDesc = {
-    label: string,
-    value: string,
+    label: string
+    value: string
     children?: RecordDesc[]
   }
 
@@ -100,7 +105,7 @@ namespace API {
     expireDate: DateString
   }
 
-  type AnnouncementTags = "tos" | "pinned" | "normal"
+  type AnnouncementTags = 'tos' | 'pinned' | 'normal'
 
   // /api/admin/work-schedules
   type WorkSchedule = {

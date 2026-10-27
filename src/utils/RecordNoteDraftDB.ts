@@ -2,7 +2,7 @@
 // localStorage) so Stage 3 can add photo files without changing the storage
 // layer. A per-record key includes the signed-in account identity.
 
-export const RECORD_NOTE_DRAFT_VERSION = 1
+export const RECORD_NOTE_DRAFT_VERSION = 2
 
 const DB_NAME = 'clinic-record-note-drafts'
 const DB_VERSION = 1
@@ -20,6 +20,35 @@ export interface PersistedPendingPhoto {
   baselinePhotoIds?: number[]
 }
 
+// Stage 4 stored replace/remove operations together. Replacement was removed;
+// this shape is retained only so version 1 drafts can be migrated.
+export interface PersistedLegacyPhotoEdit {
+  clientId: string
+  kind: 'replace' | 'remove'
+  photoId: number
+  originalPosition: number
+  name?: string
+  type?: string
+  size?: number
+  lastModified?: number
+  data?: Blob
+  error?: string
+  uncertain?: boolean
+}
+
+export interface PersistedPhotoDeletion {
+  photoId: number
+  index: number
+  error?: string
+  uncertain?: boolean
+}
+
+export interface PersistedPhotoOrderEntry {
+  kind: 'photo' | 'pending'
+  photoId?: number
+  clientId?: string
+}
+
 export interface RecordNoteDraftRecord {
   key: string
   accountId: string
@@ -29,6 +58,12 @@ export interface RecordNoteDraftRecord {
   updatedAt: number
   version: number
   pendingPhotos?: PersistedPendingPhoto[]
+  pendingDeletions?: PersistedPhotoDeletion[]
+  recoverablePhotos?: PersistedPendingPhoto[]
+  photoOrder?: PersistedPhotoOrderEntry[]
+  photoBaselineIds?: number[]
+  /** Version 1 only. Migrated into pendingDeletions/recoverablePhotos. */
+  pendingEdits?: PersistedLegacyPhotoEdit[]
 }
 
 const draftKey = (accountId: string, recordId: number) => `${accountId}:${recordId}`
@@ -90,7 +125,9 @@ export const loadRecordNoteDraft = async (
     request.onerror = () => reject(request.error ?? new Error('failed to read draft'))
   })
 
-  if (!value || value.version !== RECORD_NOTE_DRAFT_VERSION) return null
+  if (!value || (value.version !== 1 && value.version !== RECORD_NOTE_DRAFT_VERSION)) {
+    return null
+  }
   return value
 }
 

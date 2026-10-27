@@ -30,16 +30,6 @@
           <n-text v-else-if="persistState === 'error'" type="error" class="draft-status">
             无法保存草稿到本机，草稿仅保留在当前页面。
           </n-text>
-          <n-button
-            v-if="hasLocalDraft"
-            text
-            type="error"
-            size="tiny"
-            :disabled="saving"
-            @click="confirmDiscard"
-          >
-            放弃草稿
-          </n-button>
         </n-space>
 
         <n-button text size="tiny" @click="problemExpanded = !problemExpanded">
@@ -109,44 +99,53 @@
         </n-space>
         <n-alert v-if="photosError" type="error" :show-icon="false" class="photo-alert">
           {{ photosError }}
-          <n-button text type="primary" size="small" @click="loadPhotosForRecord()">
+          <n-button
+            text
+            type="primary"
+            size="small"
+            :disabled="saving"
+            @click="loadPhotosForRecord()"
+          >
             重试
           </n-button>
         </n-alert>
 
-        <RecordPhotoGallery v-if="photos.length" :photos="photos" />
+        <n-text depth="3" class="photo-hint">
+          点击缩略图可查看大图。拖动缩略图上的手柄可排序，也可以使用前移/后移。删除和排序会在保存后应用。删除的照片会从服务器删除，记录的“后悔药”不会恢复已删除的照片。
+        </n-text>
 
-        <div v-if="pendingPhotos.length" class="pending-photo-list">
-          <div v-for="item in pendingPhotos" :key="item.clientId" class="pending-photo">
-            <n-image
-              :src="item.previewUrl"
-              :alt="item.file.name || '照片'"
-              :width="96"
-              :height="96"
-              object-fit="cover"
-              class="pending-photo-image"
-            />
-            <n-space vertical :size="2" class="pending-photo-meta">
-              <n-text depth="3" class="photo-name">{{ item.file.name || '截图' }}</n-text>
-              <n-tag size="tiny" :type="photoStatusType(item.status)" :bordered="false">
-                {{ photoStatusLabel(item.status) }}
-              </n-tag>
-              <n-button
-                v-if="item.status !== 'uploaded' && item.status !== 'uploading'"
-                text
-                type="error"
-                size="tiny"
-                :disabled="saving"
-                @click="removePending(item.clientId)"
-              >
-                移除
-              </n-button>
-            </n-space>
-            <n-text v-if="item.error" type="error" class="photo-error">
-              {{ item.error }}
-            </n-text>
+        <n-alert
+          v-if="recoverablePhotos.length"
+          type="warning"
+          :show-icon="false"
+          class="photo-alert"
+        >
+          <div>
+            检测到旧版草稿中的
+            {{ recoverablePhotos.length }}
+            张替换图片。替换功能已移除，不会自动上传，也不会删除原照片。
           </div>
-        </div>
+          <n-space :size="8" style="margin-top: 8px">
+            <n-button size="small" type="primary" :disabled="saving" @click="recoverLegacyPhotos">
+              恢复为新照片
+            </n-button>
+            <n-button size="small" :disabled="saving" @click="discardLegacyPhotos"> 丢弃 </n-button>
+          </n-space>
+        </n-alert>
+
+        <RecordPhotoGallery
+          v-if="activeGalleryItems.length || deletedGalleryItems.length"
+          :items="activeGalleryItems"
+          :deleted-items="deletedGalleryItems"
+          editable
+          sortable
+          :disabled="saving"
+          @delete="deletePhotoByKey"
+          @undo-delete="undoDeleteByKey"
+          @remove-pending="removePendingByKey"
+          @move="moveGalleryItem"
+          @move-step="moveGalleryStep"
+        />
 
         <n-alert
           v-if="photoErrors.length"
@@ -238,9 +237,26 @@ import {
   deleteRecordNoteDraft,
   loadRecordNoteDraft,
   saveRecordNoteDraft,
-  type PersistedPendingPhoto
+  type PersistedLegacyPhotoEdit,
+  type PersistedPendingPhoto,
+  type PersistedPhotoDeletion,
+  type PersistedPhotoOrderEntry
 } from '@/utils/RecordNoteDraftDB'
-import { useDialog, useMessage } from 'naive-ui'
+import {
+  isPhotoSequenceUnchanged,
+  isSameKeySequence,
+  isSamePhotoSequence,
+  movePhotoByStep,
+  movePhotoIdentity,
+  orderDeletions,
+  photoIdentityKey,
+  reconcilePhotoOrder,
+  type PendingPhotoDeletion,
+  type PhotoGalleryItem,
+  type PhotoMoveRequest,
+  type PhotoOrderIdentity
+} from '@/utils/RecordPhotoEdits'
+import { useMessage } from 'naive-ui'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 type PendingPhotoStatus = 'pending' | 'uploading' | 'uploaded' | 'failed'
@@ -255,10 +271,21 @@ interface PendingPhoto {
   baselinePhotoIds: number[]
 }
 
+interface RecoverablePhoto {
+  clientId: string
+  file: File
+  previewUrl: string
+}
+
 interface LoadedDraft {
   text: string
   originalServerText: string
   pendingPhotos?: PersistedPendingPhoto[]
+  pendingDeletions?: PersistedPhotoDeletion[]
+  recoverablePhotos?: PersistedPendingPhoto[]
+  photoOrder?: PersistedPhotoOrderEntry[]
+  photoBaselineIds?: number[]
+  pendingEdits?: PersistedLegacyPhotoEdit[]
 }
 
 const props = defineProps<{
@@ -272,7 +299,6 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
-const dialog = useDialog()
 
 const editorText = ref('')
 const savedText = ref('')
@@ -290,6 +316,10 @@ const problemExpanded = ref(false)
 
 const photos = ref<API.RecordPhoto[]>([])
 const pendingPhotos = ref<PendingPhoto[]>([])
+const pendingDeletions = ref<PendingPhotoDeletion[]>([])
+const recoverablePhotos = ref<RecoverablePhoto[]>([])
+const photoOrder = ref<PhotoOrderIdentity[]>([])
+const photoBaselineIds = ref<number[]>([])
 const photosLoading = ref(false)
 const photosError = ref('')
 const maxCount = ref<number | null>(null)
@@ -314,17 +344,103 @@ const pendingCount = computed(
   () => pendingPhotos.value.filter((photo) => photo.status !== 'uploaded').length
 )
 const hasPendingPhotos = computed(() => pendingCount.value > 0)
-const hasLocalDraft = computed(() => isDirty.value || hasConflict.value || hasPendingPhotos.value)
-const hasFailedPhotos = computed(() =>
-  pendingPhotos.value.some((photo) => photo.status === 'failed')
+const deletedPhotoIds = computed(
+  () => new Set(pendingDeletions.value.map((deletion) => deletion.photoId))
 )
-const totalPhotoCount = computed(() => photos.value.length + pendingCount.value)
+const hasPendingDeletions = computed(() => pendingDeletions.value.length > 0)
+const naturalOrderKeys = computed(() => {
+  const deleted = deletedPhotoIds.value
+  return [
+    ...photos.value.filter((photo) => !deleted.has(photo.id)).map((photo) => `photo:${photo.id}`),
+    ...pendingPhotos.value.map((photo) => `pending:${photo.clientId}`)
+  ]
+})
+const currentOrderKeys = computed(() => photoOrder.value.map(photoIdentityKey))
+const hasOrderChanges = computed(
+  () => !isSameKeySequence(currentOrderKeys.value, naturalOrderKeys.value)
+)
+const hasPendingPhotoWork = computed(
+  () => hasPendingPhotos.value || hasPendingDeletions.value || hasOrderChanges.value
+)
+const hasRecoverablePhotos = computed(() => recoverablePhotos.value.length > 0)
+const hasLocalDraft = computed(
+  () =>
+    isDirty.value || hasConflict.value || hasPendingPhotoWork.value || hasRecoverablePhotos.value
+)
+const hasFailedPhotos = computed(
+  () =>
+    pendingPhotos.value.some((photo) => photo.status === 'failed') ||
+    pendingDeletions.value.some((deletion) => deletion.status === 'failed')
+)
+const stagedDeletionCount = computed(() => {
+  const ids = deletedPhotoIds.value
+  return photos.value.filter((photo) => ids.has(photo.id)).length
+})
+const totalPhotoCount = computed(
+  () => photos.value.length - stagedDeletionCount.value + pendingCount.value
+)
+const activeGalleryItems = computed<PhotoGalleryItem[]>(() => {
+  const serverById = new Map(photos.value.map((photo) => [photo.id, photo]))
+  const pendingById = new Map(pendingPhotos.value.map((photo) => [photo.clientId, photo]))
+  const recordId = props.record?.id
+
+  return photoOrder.value.flatMap((identity): PhotoGalleryItem[] => {
+    if (identity.kind === 'photo') {
+      const photo = serverById.get(identity.photoId)
+      if (!photo) return []
+      return [
+        {
+          key: photoIdentityKey(identity),
+          kind: 'photo',
+          photoId: photo.id,
+          src: recordId ? records.photoSrc(recordId, photo) : photo.url,
+          alt: `处理照片 ${photo.position}`
+        }
+      ]
+    }
+
+    const pending = pendingById.get(identity.clientId)
+    if (!pending) return []
+    return [
+      {
+        key: photoIdentityKey(identity),
+        kind: 'pending',
+        clientId: pending.clientId,
+        src: pending.previewUrl,
+        alt: pending.file.name || '照片',
+        status: pending.status,
+        statusLabel: photoStatusLabel(pending.status),
+        error: pending.error
+      }
+    ]
+  })
+})
+const deletedGalleryItems = computed<PhotoGalleryItem[]>(() => {
+  const serverById = new Map(photos.value.map((photo) => [photo.id, photo]))
+  const recordId = props.record?.id
+  return pendingDeletions.value.flatMap((deletion): PhotoGalleryItem[] => {
+    const photo = serverById.get(deletion.photoId)
+    if (!photo) return []
+    return [
+      {
+        key: `photo:${photo.id}`,
+        kind: 'photo',
+        photoId: photo.id,
+        src: recordId ? records.photoSrc(recordId, photo) : photo.url,
+        alt: `处理照片 ${photo.position}`,
+        status: 'deleting',
+        statusLabel: '待删除',
+        error: deletion.error
+      }
+    ]
+  })
+})
 const canSave = computed(() => {
   return (
     !saving.value &&
     !draftLoading.value &&
     !hasConflict.value &&
-    (isDirty.value || hasPendingPhotos.value)
+    (isDirty.value || hasPendingPhotoWork.value)
   )
 })
 
@@ -356,8 +472,12 @@ const errorText = (error: unknown) => {
   return response?.data?.error || response?.data?.msg || ''
 }
 
+const responseStatus = (error: unknown) => {
+  return (error as { response?: { status?: number } })?.response?.status
+}
+
 const isUncertainUploadError = (error: unknown) => {
-  const status = (error as { response?: { status?: number } })?.response?.status
+  const status = responseStatus(error)
   if (status === undefined) return true
   return status === 408 || status >= 500
 }
@@ -375,21 +495,8 @@ const photoStatusLabel = (status: PendingPhotoStatus) => {
   }
 }
 
-const photoStatusType = (status: PendingPhotoStatus) => {
-  switch (status) {
-    case 'pending':
-      return 'default'
-    case 'uploading':
-      return 'info'
-    case 'uploaded':
-      return 'success'
-    case 'failed':
-      return 'error'
-  }
-}
-
-const persistablePendingPhotos = (): PersistedPendingPhoto[] => {
-  return pendingPhotos.value
+const persistablePendingPhotos = (source: PendingPhoto[]): PersistedPendingPhoto[] => {
+  return source
     .filter((photo) => photo.status !== 'uploaded')
     .map((photo) => ({
       clientId: photo.clientId,
@@ -404,6 +511,61 @@ const persistablePendingPhotos = (): PersistedPendingPhoto[] => {
     }))
 }
 
+const persistableRecoverablePhotos = (): PersistedPendingPhoto[] => {
+  return recoverablePhotos.value.map((photo) => ({
+    clientId: photo.clientId,
+    name: photo.file.name,
+    type: photo.file.type,
+    size: photo.file.size,
+    lastModified: photo.file.lastModified,
+    data: photo.file
+  }))
+}
+
+const persistableDeletions = (): PersistedPhotoDeletion[] => {
+  return pendingDeletions.value.map((deletion) => ({
+    photoId: deletion.photoId,
+    index: deletion.index,
+    error: deletion.error,
+    uncertain: deletion.uncertain
+  }))
+}
+
+const persistablePhotoOrder = (): PersistedPhotoOrderEntry[] => {
+  return photoOrder.value.map((identity) =>
+    identity.kind === 'photo'
+      ? { kind: 'photo' as const, photoId: identity.photoId }
+      : { kind: 'pending' as const, clientId: identity.clientId }
+  )
+}
+
+const draftServerOrder = (draft: {
+  photoOrder?: PersistedPhotoOrderEntry[]
+  pendingDeletions?: PersistedPhotoDeletion[]
+}): number[] => {
+  const deleted = new Set((draft.pendingDeletions ?? []).map((item) => item.photoId))
+  return (draft.photoOrder ?? []).flatMap((entry) => {
+    if (entry.kind !== 'photo' || entry.photoId === undefined) return []
+    if (deleted.has(entry.photoId)) return []
+    return [entry.photoId]
+  })
+}
+
+const draftHasPhotoWork = (draft: {
+  pendingPhotos?: PersistedPendingPhoto[]
+  pendingDeletions?: PersistedPhotoDeletion[]
+  recoverablePhotos?: PersistedPendingPhoto[]
+  photoOrder?: PersistedPhotoOrderEntry[]
+}) => {
+  if ((draft.pendingPhotos?.length ?? 0) > 0) return true
+  if ((draft.pendingDeletions?.length ?? 0) > 0) return true
+  if ((draft.recoverablePhotos?.length ?? 0) > 0) return true
+  if (!draft.photoOrder) return false
+  const deleted = new Set((draft.pendingDeletions ?? []).map((item) => item.photoId))
+  const current = photos.value.filter((photo) => !deleted.has(photo.id)).map((photo) => photo.id)
+  return !isSamePhotoSequence(draftServerOrder(draft), current)
+}
+
 const draftSnapshot = () => {
   const record = props.record
   if (!record) return null
@@ -413,18 +575,24 @@ const draftSnapshot = () => {
     text: editorText.value,
     originalServerText: draftOriginalServerText.value,
     updatedAt: Date.now(),
-    pendingPhotos: persistablePendingPhotos()
+    pendingPhotos: persistablePendingPhotos(pendingPhotos.value),
+    pendingDeletions: persistableDeletions(),
+    recoverablePhotos: persistableRecoverablePhotos(),
+    photoOrder: persistablePhotoOrder(),
+    photoBaselineIds: [...photoBaselineIds.value]
   }
 }
 
-const revokePendingPreviews = () => {
+const revokePhotoPreviews = () => {
   for (const photo of pendingPhotos.value) {
+    if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
+  }
+  for (const photo of recoverablePhotos.value) {
     if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
   }
 }
 
 const restorePendingPhotos = (stored?: PersistedPendingPhoto[]) => {
-  revokePendingPreviews()
   pendingPhotos.value = (stored ?? []).map((photo) => {
     const file = new File([photo.data], photo.name, {
       type: photo.type,
@@ -442,9 +610,57 @@ const restorePendingPhotos = (stored?: PersistedPendingPhoto[]) => {
   })
 }
 
-const clearPendingPhotos = () => {
-  revokePendingPreviews()
+const restoreRecoverablePhotos = (stored?: PersistedPendingPhoto[]) => {
+  recoverablePhotos.value = (stored ?? []).map((photo) => {
+    const file = new File([photo.data], photo.name || '照片', {
+      type: photo.type,
+      lastModified: photo.lastModified
+    })
+    return {
+      clientId: photo.clientId,
+      file,
+      previewUrl: URL.createObjectURL(file)
+    }
+  })
+}
+
+const restorePendingDeletions = (stored?: PersistedPhotoDeletion[]) => {
+  pendingDeletions.value = (stored ?? []).map((deletion) => ({
+    photoId: deletion.photoId,
+    index: deletion.index,
+    status: deletion.uncertain || deletion.error ? 'failed' : 'pending',
+    error: deletion.uncertain ? '上次删除状态未知，保存时会先核对服务器照片。' : deletion.error,
+    uncertain: deletion.uncertain ?? false
+  }))
+}
+
+const restorePhotoOrder = (stored?: PersistedPhotoOrderEntry[]) => {
+  photoOrder.value = (stored ?? []).flatMap((entry): PhotoOrderIdentity[] => {
+    if (entry.kind === 'photo' && entry.photoId !== undefined) {
+      return [{ kind: 'photo', photoId: entry.photoId }]
+    }
+    if (entry.kind === 'pending' && entry.clientId) {
+      return [{ kind: 'pending', clientId: entry.clientId }]
+    }
+    return []
+  })
+}
+
+const syncPhotoOrder = (storedOrder?: PhotoOrderIdentity[], adoptServerOrder = false) => {
+  photoOrder.value = reconcilePhotoOrder(
+    adoptServerOrder ? undefined : storedOrder ?? photoOrder.value,
+    photos.value,
+    pendingPhotos.value,
+    deletedPhotoIds.value
+  )
+}
+
+const clearPendingWork = (keepRecoverable = false) => {
+  revokePhotoPreviews()
   pendingPhotos.value = []
+  pendingDeletions.value = []
+  photoOrder.value = []
+  if (!keepRecoverable) recoverablePhotos.value = []
 }
 
 const cancelDraftTimer = () => {
@@ -479,7 +695,7 @@ const persistLatestDraft = async (): Promise<boolean> => {
       if (
         draft.text === draft.originalServerText &&
         !hasConflict.value &&
-        draft.pendingPhotos.length === 0
+        !draftHasPhotoWork(draft)
       ) {
         deleteSessionRecordNoteDraft(draft.accountId, draft.recordId)
         if (draft.accountId) {
@@ -523,9 +739,7 @@ const persistLatestDraft = async (): Promise<boolean> => {
         const current = draftSnapshot()
         if (
           current &&
-          (current.text !== savedText.value ||
-            hasConflict.value ||
-            current.pendingPhotos.length > 0)
+          (current.text !== savedText.value || hasConflict.value || draftHasPhotoWork(current))
         ) {
           continue
         }
@@ -540,11 +754,7 @@ const persistLatestDraft = async (): Promise<boolean> => {
         pendingPhotoRevision.value === photoRevision
       ) {
         deleteSessionRecordNoteDraft(draft.accountId, draft.recordId)
-        if (
-          current.text === savedText.value &&
-          !hasConflict.value &&
-          current.pendingPhotos.length === 0
-        ) {
+        if (current.text === savedText.value && !hasConflict.value && !draftHasPhotoWork(current)) {
           try {
             await deleteRecordNoteDraft(draft.accountId, draft.recordId)
           } catch {
@@ -578,7 +788,12 @@ const scheduleDraftPersist = () => {
 
 const flushDraft = async (): Promise<boolean> => {
   cancelDraftTimer()
-  if (!isDirty.value && !hasConflict.value && !hasPendingPhotos.value) {
+  if (
+    !isDirty.value &&
+    !hasConflict.value &&
+    !hasPendingPhotoWork.value &&
+    !hasRecoverablePhotos.value
+  ) {
     draftGeneration += 1
     await removeLocalDrafts()
     persistState.value = 'idle'
@@ -587,19 +802,29 @@ const flushDraft = async (): Promise<boolean> => {
   return persistLatestDraft()
 }
 
-const loadPhotosForRecord = async (recordId?: number) => {
+const loadPhotosForRecord = async (recordId?: number): Promise<API.RecordPhotoList | null> => {
   const target = recordId ?? props.record?.id
-  if (!target) return
+  if (!target) return null
 
   const requestId = ++photosRequestId
+  const preserveOrder = hasOrderChanges.value
   photosLoading.value = true
   photosError.value = ''
   try {
     const list = await records.listRecordPhotos(target)
-    if (requestId !== photosRequestId || props.record?.id !== target) return
+    if (requestId !== photosRequestId || props.record?.id !== target) return null
     photos.value = list.items
     maxCount.value = list.max_count
     maxSizeBytes.value = list.max_size_bytes
+    if (preserveOrder) {
+      syncPhotoOrder()
+    } else {
+      syncPhotoOrder(undefined, true)
+      if (!hasPendingDeletions.value) {
+        photoBaselineIds.value = list.items.map((photo) => photo.id)
+      }
+    }
+    return list
   } catch {
     if (requestId === photosRequestId && props.record?.id === target) {
       photosError.value = '照片列表加载失败，请重试。'
@@ -609,10 +834,51 @@ const loadPhotosForRecord = async (recordId?: number) => {
         maxSizeBytes.value = null
       }
     }
+    return null
   } finally {
     if (requestId === photosRequestId && props.record?.id === target) {
       photosLoading.value = false
     }
+  }
+}
+
+const refreshPhotosFromServer = async (recordId: number): Promise<API.RecordPhotoList | null> => {
+  const preserveOrder = hasOrderChanges.value
+  try {
+    const list = await records.listRecordPhotos(recordId)
+    if (props.record?.id === recordId) {
+      photos.value = list.items
+      maxCount.value = list.max_count
+      maxSizeBytes.value = list.max_size_bytes
+      photosError.value = ''
+      if (preserveOrder) syncPhotoOrder()
+      else syncPhotoOrder(undefined, true)
+    }
+    return list
+  } catch {
+    if (props.record?.id === recordId) {
+      photosError.value = '照片列表刷新失败，请重试。'
+    }
+    return null
+  }
+}
+
+const newClientId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const photoValidationError = (file: File): string => {
+  const name = file.name || '截图'
+  if (file.size === 0) return `${name}：文件为空。`
+  if (!fileContentType(file)) return `${name}：仅支持 JPEG、PNG、WebP。`
+  if (maxSizeBytes.value !== null && file.size > maxSizeBytes.value) {
+    return `${name}：超过单张 ${formatBytes(maxSizeBytes.value)} 的上限。`
+  }
+  return ''
+}
+
+const ensurePhotoBaseline = () => {
+  if (photoBaselineIds.value.length === 0) {
+    photoBaselineIds.value = photos.value.map((photo) => photo.id)
   }
 }
 
@@ -625,32 +891,22 @@ const addFiles = (files: File[]) => {
     return
   }
 
-  let remaining = maxCount.value - photos.value.length - pendingCount.value
+  let remaining = maxCount.value - totalPhotoCount.value
   const additions: PendingPhoto[] = []
 
   for (const file of files) {
-    const name = file.name || '截图'
-    const contentType = fileContentType(file)
-    if (file.size === 0) {
-      errors.push(`${name}：文件为空。`)
-      continue
-    }
-    if (!contentType) {
-      errors.push(`${name}：仅支持 JPEG、PNG、WebP。`)
-      continue
-    }
-    if (file.size > maxSizeBytes.value) {
-      errors.push(`${name}：超过单张 ${formatBytes(maxSizeBytes.value)} 的上限。`)
+    const error = photoValidationError(file)
+    if (error) {
+      errors.push(error)
       continue
     }
     if (remaining <= 0) {
-      errors.push(`${name}：照片数量已达上限 ${maxCount.value} 张。`)
+      errors.push(`${file.name || '截图'}：照片数量已达上限 ${maxCount.value} 张。`)
       continue
     }
 
     additions.push({
-      clientId:
-        globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      clientId: newClientId(),
       file,
       previewUrl: URL.createObjectURL(file),
       status: 'pending',
@@ -661,7 +917,15 @@ const addFiles = (files: File[]) => {
   }
 
   if (additions.length > 0) {
+    ensurePhotoBaseline()
     pendingPhotos.value = [...pendingPhotos.value, ...additions]
+    photoOrder.value = [
+      ...photoOrder.value,
+      ...additions.map(
+        (photo): PhotoOrderIdentity => ({ kind: 'pending', clientId: photo.clientId })
+      )
+    ]
+    syncPhotoOrder()
     message.success(`已添加 ${additions.length} 张照片`)
   }
 
@@ -709,24 +973,137 @@ const handleDrop = (event: DragEvent) => {
   if (files.length) addFiles(files)
 }
 
-const removePending = (clientId: string) => {
-  if (saving.value) return
+const photoIdFromKey = (key: string): number | null => {
+  if (!key.startsWith('photo:')) return null
+  const id = Number(key.slice('photo:'.length))
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+const clientIdFromKey = (key: string): string | null => {
+  if (!key.startsWith('pending:')) return null
+  return key.slice('pending:'.length) || null
+}
+
+const deletePhotoByKey = (key: string) => {
+  if (saving.value || draftLoading.value) return
+  const photoId = photoIdFromKey(key)
+  if (photoId === null) return
+  if (pendingDeletions.value.some((deletion) => deletion.photoId === photoId)) return
+  const index = photoOrder.value.findIndex((identity) => photoIdentityKey(identity) === key)
+  if (index < 0) return
+
+  photoOrder.value = photoOrder.value.filter((identity) => photoIdentityKey(identity) !== key)
+  pendingDeletions.value = [
+    ...pendingDeletions.value,
+    {
+      photoId,
+      index,
+      status: 'pending',
+      uncertain: false
+    }
+  ]
+  photoErrors.value = []
+  ensurePhotoBaseline()
+  message.info('已标记为待删除，保存后才会从服务器删除')
+}
+
+const undoDeleteByKey = (key: string) => {
+  if (saving.value || draftLoading.value) return
+  const photoId = photoIdFromKey(key)
+  if (photoId === null) return
+  const deletion = pendingDeletions.value.find((item) => item.photoId === photoId)
+  if (!deletion) return
+
+  pendingDeletions.value = pendingDeletions.value.filter((item) => item.photoId !== photoId)
+  const identity: PhotoOrderIdentity = { kind: 'photo', photoId }
+  const identityKey = photoIdentityKey(identity)
+  if (!photoOrder.value.some((item) => photoIdentityKey(item) === identityKey)) {
+    const index = Math.min(Math.max(deletion.index, 0), photoOrder.value.length)
+    const next = photoOrder.value.slice()
+    next.splice(index, 0, identity)
+    photoOrder.value = next
+  }
+}
+
+const removePendingByKey = (key: string) => {
+  if (saving.value || draftLoading.value) return
+  const clientId = clientIdFromKey(key)
+  if (!clientId) return
   const photo = pendingPhotos.value.find((item) => item.clientId === clientId)
   if (!photo || photo.status === 'uploading' || photo.status === 'uploaded') return
   if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
   pendingPhotos.value = pendingPhotos.value.filter((item) => item.clientId !== clientId)
+  photoOrder.value = photoOrder.value.filter((identity) => photoIdentityKey(identity) !== key)
+}
+
+const moveGalleryItem = (request: PhotoMoveRequest) => {
+  if (saving.value || draftLoading.value) return
+  photoOrder.value = movePhotoIdentity(
+    photoOrder.value,
+    request.fromKey,
+    request.toKey,
+    request.position
+  )
+  ensurePhotoBaseline()
+}
+
+const moveGalleryStep = (key: string, delta: number) => {
+  if (saving.value || draftLoading.value) return
+  photoOrder.value = movePhotoByStep(photoOrder.value, key, delta)
+  ensurePhotoBaseline()
+}
+
+const recoverLegacyPhotos = () => {
+  if (saving.value || draftLoading.value || recoverablePhotos.value.length === 0) return
+  ensurePhotoBaseline()
+  const additions: PendingPhoto[] = recoverablePhotos.value.map((photo) => ({
+    clientId: photo.clientId,
+    file: photo.file,
+    previewUrl: photo.previewUrl,
+    status: 'pending',
+    uncertain: false,
+    baselinePhotoIds: []
+  }))
+  pendingPhotos.value = [...pendingPhotos.value, ...additions]
+  photoOrder.value = [
+    ...photoOrder.value,
+    ...additions.map((photo): PhotoOrderIdentity => ({ kind: 'pending', clientId: photo.clientId }))
+  ]
+  recoverablePhotos.value = []
+  syncPhotoOrder()
+  message.success(`已将 ${additions.length} 张旧照片恢复为待上传照片`)
+}
+
+const discardLegacyPhotos = () => {
+  if (saving.value || draftLoading.value) return
+  for (const photo of recoverablePhotos.value) {
+    if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
+  }
+  recoverablePhotos.value = []
+  message.info('已丢弃旧版替换图片')
 }
 
 const markPhotoUploaded = (photo: PendingPhoto, uploaded: API.RecordPhoto) => {
-  photo.status = 'uploaded'
-  photo.uncertain = false
-  photo.error = undefined
+  const pendingKey = `pending:${photo.clientId}`
   if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
-  photo.previewUrl = uploaded.url
+  pendingPhotos.value = pendingPhotos.value.filter((item) => item.clientId !== photo.clientId)
+
+  const identity: PhotoOrderIdentity = { kind: 'photo', photoId: uploaded.id }
+  const index = photoOrder.value.findIndex((item) => photoIdentityKey(item) === pendingKey)
+  if (index >= 0) {
+    const next = photoOrder.value.slice()
+    next[index] = identity
+    photoOrder.value = next
+  } else if (
+    !photoOrder.value.some((item) => photoIdentityKey(item) === photoIdentityKey(identity))
+  ) {
+    photoOrder.value = [...photoOrder.value, identity]
+  }
 }
 
 const reconcileUncertainPhotos = async (
-  recordId: number
+  recordId: number,
+  knownList?: API.RecordPhotoList
 ): Promise<{ ok: boolean; uploaded: number }> => {
   const uncertain = pendingPhotos.value.filter(
     (photo) => photo.status !== 'uploaded' && photo.uncertain
@@ -734,15 +1111,19 @@ const reconcileUncertainPhotos = async (
   if (uncertain.length === 0) return { ok: true, uploaded: 0 }
 
   let list: API.RecordPhotoList
-  try {
-    list = await records.listRecordPhotos(recordId)
-  } catch {
-    for (const photo of uncertain) {
-      photo.status = 'failed'
-      photo.error = '无法核对上次上传状态，请稍后重试。'
+  if (knownList) {
+    list = knownList
+  } else {
+    try {
+      list = await records.listRecordPhotos(recordId)
+    } catch {
+      for (const photo of uncertain) {
+        photo.status = 'failed'
+        photo.error = '无法核对上次上传状态，请稍后重试。'
+      }
+      await flushDraft()
+      return { ok: false, uploaded: 0 }
     }
-    await flushDraft()
-    return { ok: false, uploaded: 0 }
   }
 
   if (props.record?.id === recordId) {
@@ -769,6 +1150,7 @@ const reconcileUncertainPhotos = async (
     photo.error = undefined
   }
 
+  syncPhotoOrder()
   await flushDraft()
   if (uploaded > 0) {
     await records.reloadRecord(recordId).catch(() => {})
@@ -782,7 +1164,7 @@ const uploadPendingPhotos = async (
   let uploaded = 0
   let failed = 0
 
-  for (const photo of pendingPhotos.value) {
+  for (const photo of [...pendingPhotos.value]) {
     if (photo.status === 'uploaded') continue
     if (photo.status === 'failed' && photo.uncertain) {
       photo.error = photo.error ?? '上次上传状态未知，请稍后重试。'
@@ -798,8 +1180,9 @@ const uploadPendingPhotos = async (
 
     try {
       const uploadedPhoto = await records.appendRecordPhoto(recordId, photo.file)
-      markPhotoUploaded(photo, uploadedPhoto)
       photos.value = [...photos.value, uploadedPhoto]
+      markPhotoUploaded(photo, uploadedPhoto)
+      syncPhotoOrder()
       uploaded += 1
       await flushDraft()
     } catch (error) {
@@ -818,6 +1201,44 @@ const uploadPendingPhotos = async (
   return { uploaded, failed, stopped: false }
 }
 
+const migrateLegacyPhotoEdits = (legacy?: PersistedLegacyPhotoEdit[]): boolean => {
+  if (!legacy?.length) return false
+  let changed = false
+  for (const edit of legacy) {
+    if (edit.kind === 'remove') {
+      if (pendingDeletions.value.some((item) => item.photoId === edit.photoId)) continue
+      pendingDeletions.value = [
+        ...pendingDeletions.value,
+        {
+          photoId: edit.photoId,
+          index: Math.max(0, edit.originalPosition - 1),
+          status: edit.uncertain || edit.error ? 'failed' : 'pending',
+          error: edit.uncertain ? '上次删除状态未知，保存时会先核对服务器照片。' : edit.error,
+          uncertain: edit.uncertain ?? false
+        }
+      ]
+      changed = true
+      continue
+    }
+
+    if (edit.kind !== 'replace' || !edit.data) continue
+    const file = new File([edit.data], edit.name || '照片', {
+      type: edit.type,
+      lastModified: edit.lastModified
+    })
+    recoverablePhotos.value = [
+      ...recoverablePhotos.value,
+      {
+        clientId: newClientId(),
+        file,
+        previewUrl: URL.createObjectURL(file)
+      }
+    ]
+    changed = true
+  }
+  return changed
+}
+
 const initialize = async () => {
   const record = props.record
   if (!record) return
@@ -828,20 +1249,22 @@ const initialize = async () => {
   conflictServerText.value = null
   persistState.value = 'idle'
   cancelDraftTimer()
-  clearPendingPhotos()
+  clearPendingWork()
 
   photos.value = []
+  photoBaselineIds.value = []
   maxCount.value = null
   maxSizeBytes.value = null
   photosError.value = ''
   photoErrors.value = []
-  void loadPhotosForRecord(record.id)
+  const loadedPhotoList = await loadPhotosForRecord(record.id)
 
   const initialServerText = record.worker_desc ?? ''
   savedText.value = initialServerText
   draftOriginalServerText.value = initialServerText
   editorText.value = initialServerText
   editorInitialText.value = initialServerText
+  let migratedDraft = false
 
   try {
     const accountId = currentAccountId()
@@ -858,11 +1281,7 @@ const initialize = async () => {
       }
     }
 
-    if (
-      draft &&
-      draft.text === draft.originalServerText &&
-      (draft.pendingPhotos?.length ?? 0) === 0
-    ) {
+    if (draft && draft.text === draft.originalServerText && !draftHasPhotoWork(draft)) {
       deleteSessionRecordNoteDraft(accountId, record.id)
       if (accountId) {
         try {
@@ -881,7 +1300,7 @@ const initialize = async () => {
     const currentServerText = props.record?.worker_desc ?? initialServerText
     savedText.value = currentServerText
 
-    if (draft && draft.text === currentServerText && (draft.pendingPhotos?.length ?? 0) === 0) {
+    if (draft && draft.text === currentServerText && !draftHasPhotoWork(draft)) {
       deleteSessionRecordNoteDraft(accountId, record.id)
       if (accountId) {
         try {
@@ -899,10 +1318,19 @@ const initialize = async () => {
       conflictServerText.value = null
       persistState.value = storageError ? 'error' : 'idle'
       restorePendingPhotos([])
+      restoreRecoverablePhotos([])
+      restorePendingDeletions([])
+      restorePhotoOrder([])
+      syncPhotoOrder()
     } else {
       editorText.value = draft.text
       draftOriginalServerText.value = draft.originalServerText
       restorePendingPhotos(draft.pendingPhotos)
+      restoreRecoverablePhotos(draft.recoverablePhotos)
+      restorePendingDeletions(draft.pendingDeletions)
+      restorePhotoOrder(draft.photoOrder)
+      migratedDraft = migrateLegacyPhotoEdits(draft.pendingEdits)
+      syncPhotoOrder()
       if (draft.originalServerText === currentServerText) {
         conflictServerText.value = null
         message.info('已恢复本地草稿')
@@ -910,6 +1338,13 @@ const initialize = async () => {
         conflictServerText.value = currentServerText
       }
       persistState.value = sessionDraft ? 'saving' : 'saved'
+    }
+
+    if (draft?.photoBaselineIds && draft.photoBaselineIds.length > 0) {
+      photoBaselineIds.value = [...draft.photoBaselineIds]
+    } else {
+      photoBaselineIds.value =
+        loadedPhotoList?.items.map((photo) => photo.id) ?? photos.value.map((photo) => photo.id)
     }
 
     editorInitialText.value = editorText.value
@@ -924,12 +1359,14 @@ const initialize = async () => {
       const sessionDraft = getSessionRecordNoteDraft(currentAccountId(), record.id)
       if (
         sessionDraft &&
-        (sessionDraft.text !== sessionDraft.originalServerText ||
-          (sessionDraft.pendingPhotos?.length ?? 0) > 0)
+        (sessionDraft.text !== sessionDraft.originalServerText || draftHasPhotoWork(sessionDraft))
       ) {
         void persistLatestDraft()
       } else if (sessionDraft) {
         deleteSessionRecordNoteDraft(currentAccountId(), record.id)
+      }
+      if (migratedDraft) {
+        void persistLatestDraft()
       }
       if (props.show) setTimeout(focusEditor, 0)
     }
@@ -972,7 +1409,7 @@ watch(
     if (editorText.value === value) {
       conflictServerText.value = null
       draftOriginalServerText.value = value
-      if (hasPendingPhotos.value) {
+      if (hasPendingPhotoWork.value || hasRecoverablePhotos.value) {
         const draft = draftSnapshot()
         if (draft) {
           setSessionRecordNoteDraft(draft)
@@ -996,7 +1433,12 @@ watch(editorText, (text) => {
   const record = props.record
   if (!record) return
 
-  if (text === savedText.value && !hasConflict.value && !hasPendingPhotos.value) {
+  if (
+    text === savedText.value &&
+    !hasConflict.value &&
+    !hasPendingPhotoWork.value &&
+    !hasRecoverablePhotos.value
+  ) {
     draftGeneration += 1
     cancelDraftTimer()
     void removeLocalDrafts()
@@ -1012,12 +1454,17 @@ watch(editorText, (text) => {
 })
 
 watch(
-  pendingPhotos,
+  [pendingPhotos, pendingDeletions, recoverablePhotos, photoOrder],
   () => {
     pendingPhotoRevision.value += 1
     if (suppressDraftWatch || draftLoading.value) return
 
-    if (hasPendingPhotos.value || isDirty.value || hasConflict.value) {
+    if (
+      hasPendingPhotoWork.value ||
+      hasRecoverablePhotos.value ||
+      isDirty.value ||
+      hasConflict.value
+    ) {
       const draft = draftSnapshot()
       if (draft) {
         setSessionRecordNoteDraft(draft)
@@ -1134,32 +1581,167 @@ const saveTextDraft = async (recordId: number): Promise<boolean> => {
   }
 }
 
-const save = async (closeAfter: boolean) => {
-  if (!props.record || saving.value || draftLoading.value || hasConflict.value) return
+const resolveDesiredPhotoOrder = (expectedIds: number[]): number[] => {
+  const available = new Set(expectedIds)
+  const result: number[] = []
+  const seen = new Set<number>()
+
+  for (const identity of photoOrder.value) {
+    if (identity.kind !== 'photo') continue
+    if (!available.has(identity.photoId) || seen.has(identity.photoId)) continue
+    result.push(identity.photoId)
+    seen.add(identity.photoId)
+  }
+  for (const id of expectedIds) {
+    if (seen.has(id)) continue
+    result.push(id)
+    seen.add(id)
+  }
+  return result
+}
+
+const performSave = async (closeAfter: boolean) => {
+  const record = props.record
+  if (!record || saving.value || draftLoading.value || hasConflict.value) return
   syncEditorText()
 
-  const textChanged = isDirty.value
-  const unfinishedPhotos = pendingPhotos.value.some((photo) => photo.status !== 'uploaded')
-  if (!textChanged && !unfinishedPhotos) return
+  let textChanged = isDirty.value
+  const photoWorkRequested = hasPendingPhotoWork.value
+  const orderWorkRequested = hasOrderChanges.value
+  const deletionWorkRequested = pendingDeletions.value.length > 0
+  if (!textChanged && !photoWorkRequested) return
 
-  const recordId = props.record.id
+  const recordId = record.id
   photoErrors.value = []
   saving.value = true
   savingAction.value = closeAfter ? 'save-close' : 'save'
 
   let textSaved = !textChanged
+  let deleted = 0
   let uploaded = 0
-  let photoStopped = false
+  let orderSaved = false
+  let stopped = false
   let reconciliationFailed = false
+  let finalRefreshOk = true
+
+  const removeDeletion = (photoId: number) => {
+    pendingDeletions.value = pendingDeletions.value.filter(
+      (deletion) => deletion.photoId !== photoId
+    )
+  }
 
   try {
-    const reconciliation = await reconcileUncertainPhotos(recordId)
-    uploaded += reconciliation.uploaded
-    if (!reconciliation.ok) {
-      reconciliationFailed = true
-      photoStopped = true
+    // 1. Read the latest note and the authoritative photo list before touching
+    // anything. Positions are recomputed from this list by stable photo id.
+    let latestRecord: API.Record
+    try {
+      latestRecord = await records.reloadRecord(recordId)
+    } catch {
+      message.error('无法读取服务器最新状态，请重试。')
+      await flushDraft()
+      return
     }
 
+    let latestList: API.RecordPhotoList | null = null
+    try {
+      latestList = await records.listRecordPhotos(recordId)
+    } catch {
+      // A text-only save does not depend on the photo list. Photo work does, so
+      // stop before mutating anything when positions cannot be verified.
+      if (photoWorkRequested) {
+        message.error('无法读取服务器照片列表，请重试。')
+        await flushDraft()
+        return
+      }
+    }
+
+    if (props.record?.id !== recordId || !props.show) return
+
+    if (latestList) {
+      photos.value = latestList.items
+      maxCount.value = latestList.max_count
+      maxSizeBytes.value = latestList.max_size_bytes
+      photosError.value = ''
+      if (orderWorkRequested) syncPhotoOrder()
+      else syncPhotoOrder(undefined, true)
+    }
+
+    // 2a. Detect note changes made while this dialog was open.
+    const latestText = latestRecord.worker_desc ?? ''
+    if (latestText !== savedText.value) {
+      if (!textChanged) {
+        // The note was not edited here, so accept the newer server text instead
+        // of turning a photo-only save into a text conflict.
+        savedText.value = latestText
+        draftOriginalServerText.value = latestText
+        if (editorText.value !== latestText) {
+          suppressDraftWatch = true
+          editorText.value = latestText
+          editorInitialText.value = latestText
+          editorBaseline.value = ''
+          editorReady.value = false
+          editorRevision.value += 1
+          await nextTick()
+          suppressDraftWatch = false
+        }
+      } else if (latestText === editorText.value) {
+        // The server already has the text this editor would submit.
+        savedText.value = latestText
+        draftOriginalServerText.value = latestText
+        textChanged = false
+        textSaved = true
+      } else {
+        savedText.value = latestText
+        conflictServerText.value = latestText
+        message.warning('服务器上的处理记录已变化，请先处理冲突。')
+        await flushDraft()
+        return
+      }
+    }
+
+    // 2b. Detect photo-list changes since the draft order/deletions were
+    // created. The comparison ignores photos staged for deletion.
+    const latestIds =
+      latestList?.items.map((photo) => photo.id) ?? photos.value.map((photo) => photo.id)
+    const latestIdSet = new Set(latestIds)
+    const deletionIds = new Set(pendingDeletions.value.map((deletion) => deletion.photoId))
+    if (
+      (orderWorkRequested || deletionWorkRequested) &&
+      photoBaselineIds.value.length > 0 &&
+      !isPhotoSequenceUnchanged(photoBaselineIds.value, latestIds, deletionIds)
+    ) {
+      photoBaselineIds.value = latestIds
+      photoErrors.value = [
+        '照片列表已在服务器上变化，已刷新。请确认照片顺序和待删除照片后再次保存。'
+      ]
+      await flushDraft()
+      message.warning('照片列表已变化，请确认后重试')
+      return
+    }
+    photoBaselineIds.value = latestIds
+
+    for (const deletion of [...pendingDeletions.value]) {
+      if (!latestIdSet.has(deletion.photoId)) {
+        removeDeletion(deletion.photoId)
+        deleted += 1
+      }
+    }
+    syncPhotoOrder()
+
+    // Reconcile additions whose previous upload ended without a definitive
+    // response. This must happen before new mutations so their baseline is real.
+    if (!stopped && photoWorkRequested) {
+      const reconciliation = await reconcileUncertainPhotos(recordId, latestList ?? undefined)
+      uploaded += reconciliation.uploaded
+      if (!reconciliation.ok) {
+        reconciliationFailed = true
+        stopped = true
+      }
+      syncPhotoOrder()
+    }
+
+    // 3. Save changed note text. Photo failures never discard a successful text
+    // save; a text failure stops the coordinator before photo mutations begin.
     if (textChanged) {
       const saved = await saveTextDraft(recordId)
       if (!saved) {
@@ -1169,36 +1751,153 @@ const save = async (closeAfter: boolean) => {
       textSaved = true
     }
 
-    if (!photoStopped) {
-      const result = await uploadPendingPhotos(recordId)
-      uploaded += result.uploaded
-      if (result.stopped) photoStopped = true
+    // 4. Apply deletions from the highest position down. This keeps every
+    // lower position stable for the rest of the deletions.
+    if (!stopped) {
+      const deletions = orderDeletions(pendingDeletions.value, photos.value)
+      for (const deletion of deletions) {
+        const photo = photos.value.find((item) => item.id === deletion.photoId)
+        if (!photo) {
+          removeDeletion(deletion.photoId)
+          deleted += 1
+          continue
+        }
+
+        deletion.status = 'deleting'
+        deletion.error = undefined
+        await flushDraft()
+
+        try {
+          await records.deleteRecordPhoto(recordId, photo.position)
+          removeDeletion(deletion.photoId)
+          deleted += 1
+          photos.value = photos.value.filter((item) => item.id !== deletion.photoId)
+          await flushDraft()
+        } catch (error) {
+          const uncertain = isUncertainUploadError(error)
+          deletion.status = 'failed'
+          deletion.uncertain = uncertain
+          deletion.error = uncertain
+            ? '删除状态未知，重试前会先核对服务器照片。'
+            : errorText(error) || '照片删除失败。'
+          stopped = true
+          await flushDraft()
+          break
+        }
+      }
     }
 
-    if (uploaded > 0) {
-      await loadPhotosForRecord(recordId)
+    // 5. Upload additions after deletions have freed any limit slots.
+    if (!stopped) {
+      const result = await uploadPendingPhotos(recordId)
+      uploaded += result.uploaded
+      if (result.stopped) stopped = true
+      syncPhotoOrder()
+    }
+
+    // 6/7. Resolve the final order and submit one reorder request. Expected ids
+    // are the order this client believes the server currently has; the backend
+    // returns 409 if another user changed it.
+    let reorderedList: API.RecordPhotoList | null = null
+    if (!stopped && pendingPhotos.value.length === 0 && pendingDeletions.value.length === 0) {
+      const expectedIds = photos.value.map((photo) => photo.id)
+      const desiredIds = resolveDesiredPhotoOrder(expectedIds)
+      if (!isSamePhotoSequence(expectedIds, desiredIds)) {
+        try {
+          reorderedList = await records.reorderRecordPhotos(recordId, expectedIds, desiredIds)
+          photos.value = reorderedList.items
+          maxCount.value = reorderedList.max_count
+          maxSizeBytes.value = reorderedList.max_size_bytes
+          photoOrder.value = desiredIds.map(
+            (photoId): PhotoOrderIdentity => ({ kind: 'photo', photoId })
+          )
+          for (const photo of reorderedList.items) {
+            records.bumpPhotoVersion(recordId, photo.id)
+          }
+          photoBaselineIds.value = reorderedList.items.map((photo) => photo.id)
+          orderSaved = true
+          await flushDraft()
+        } catch (error) {
+          const status = responseStatus(error)
+          const uncertain = isUncertainUploadError(error)
+          stopped = true
+          photoErrors.value = [
+            status === 409 || status === 400
+              ? '照片顺序冲突：服务器上的照片列表已变化，请重试。'
+              : uncertain
+                ? '照片顺序保存结果未知，请重试以重新核对。'
+                : errorText(error) || '照片顺序保存失败。'
+          ]
+          await flushDraft()
+        }
+      }
+    }
+
+    // 8. Refresh the record and gallery. A successful reorder response is
+    // already authoritative, so only fetch again when ordering was not saved.
+    if (reorderedList) {
+      await records.reloadRecord(recordId).catch(() => {})
+    } else if (photoWorkRequested || deleted > 0 || uploaded > 0 || stopped) {
+      const finalList = await refreshPhotosFromServer(recordId)
+      if (!finalList) {
+        finalRefreshOk = false
+      } else {
+        finalRefreshOk = true
+        const finalIds = new Set(finalList.items.map((photo) => photo.id))
+        for (const deletion of [...pendingDeletions.value]) {
+          if (!finalIds.has(deletion.photoId)) {
+            removeDeletion(deletion.photoId)
+            deleted += 1
+          }
+        }
+        syncPhotoOrder()
+        photoBaselineIds.value = finalList.items.map((photo) => photo.id)
+      }
       await records.reloadRecord(recordId).catch(() => {})
     }
 
-    const remainingPhotos = pendingPhotos.value.filter((photo) => photo.status !== 'uploaded')
-    const allSucceeded = textSaved && remainingPhotos.length === 0 && !reconciliationFailed
+    const allSucceeded =
+      textSaved &&
+      !isDirty.value &&
+      !hasConflict.value &&
+      pendingPhotos.value.length === 0 &&
+      pendingDeletions.value.length === 0 &&
+      !hasOrderChanges.value &&
+      finalRefreshOk &&
+      !reconciliationFailed
 
     if (allSucceeded) {
-      clearPendingPhotos()
-      await removeLocalDrafts()
-      persistState.value = 'idle'
+      clearPendingWork(true)
+      syncPhotoOrder()
+      if (hasRecoverablePhotos.value) {
+        await flushDraft()
+      } else {
+        await removeLocalDrafts()
+        persistState.value = 'idle'
+      }
     } else {
       await flushDraft()
     }
 
-    const failed = pendingPhotos.value.filter((photo) => photo.status === 'failed').length
-    const pending = pendingPhotos.value.filter((photo) => photo.status === 'pending').length
+    const failedAdditions = pendingPhotos.value.filter((photo) => photo.status === 'failed').length
+    const failedDeletions = pendingDeletions.value.filter(
+      (deletion) => deletion.status === 'failed'
+    ).length
+    const pendingAdditions = pendingPhotos.value.filter(
+      (photo) => photo.status === 'pending' || photo.status === 'uploading'
+    ).length
+    const orderPending = hasOrderChanges.value
     const parts: string[] = []
     if (textChanged && textSaved) parts.push('正文已保存')
     if (isDirty.value) parts.push('正文有新的修改')
+    if (deleted > 0) parts.push(`${deleted} 张照片已删除`)
     if (uploaded > 0) parts.push(`${uploaded} 张照片已上传`)
-    if (failed > 0) parts.push(`${failed} 张失败`)
-    if (pending > 0) parts.push(`${pending} 张待上传`)
+    if (orderSaved) parts.push('照片顺序已保存')
+    if (failedAdditions > 0) parts.push(`${failedAdditions} 张上传失败`)
+    if (failedDeletions > 0) parts.push(`${failedDeletions} 张删除失败`)
+    if (pendingAdditions > 0) parts.push(`${pendingAdditions} 张待上传`)
+    if (orderPending) parts.push('照片顺序待保存')
+    if (!finalRefreshOk) parts.push('照片列表刷新失败')
 
     if (allSucceeded) {
       message.success(parts.length ? parts.join('，') : '保存成功')
@@ -1212,6 +1911,10 @@ const save = async (closeAfter: boolean) => {
     saving.value = false
     savingAction.value = null
   }
+}
+
+const save = async (closeAfter: boolean) => {
+  await performSave(closeAfter)
 }
 
 const keepLocalDraft = () => {
@@ -1245,7 +1948,7 @@ const useServerVersion = async () => {
   editorReady.value = false
   conflictServerText.value = null
   editorRevision.value += 1
-  if (hasPendingPhotos.value) {
+  if (hasPendingPhotoWork.value || hasRecoverablePhotos.value) {
     await flushDraft()
   } else {
     await removeLocalDrafts()
@@ -1253,43 +1956,6 @@ const useServerVersion = async () => {
   }
   await nextTick()
   suppressDraftWatch = false
-}
-
-const discardDraft = async () => {
-  if (!props.record) return
-
-  const serverText = props.record.worker_desc ?? savedText.value
-  draftGeneration += 1
-  cancelDraftTimer()
-  suppressDraftWatch = true
-  clearPendingPhotos()
-  savedText.value = serverText
-  draftOriginalServerText.value = serverText
-  editorText.value = serverText
-  editorInitialText.value = serverText
-  editorBaseline.value = ''
-  editorReady.value = false
-  conflictServerText.value = null
-  editorRevision.value += 1
-  await removeLocalDrafts()
-  persistState.value = 'idle'
-  await nextTick()
-  suppressDraftWatch = false
-  message.success('已放弃本地草稿')
-}
-
-const confirmDiscard = () => {
-  if (!hasLocalDraft.value) return
-
-  dialog.warning({
-    title: '放弃草稿',
-    content: '本地草稿和待上传照片会被删除，服务器上的处理记录不会改变。',
-    positiveText: '放弃草稿',
-    negativeText: '取消',
-    onPositiveClick: () => {
-      void discardDraft()
-    }
-  })
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
@@ -1312,7 +1978,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
   cancelDraftTimer()
-  revokePendingPreviews()
+  revokePhotoPreviews()
 })
 </script>
 

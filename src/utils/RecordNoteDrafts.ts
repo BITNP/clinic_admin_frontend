@@ -2,7 +2,11 @@
 // entry here means the latest text is not durably stored, so refresh/tab close
 // and SPA navigation must warn before discarding it.
 
-import type { PersistedPendingPhoto } from '@/utils/RecordNoteDraftDB'
+import type {
+  PersistedPendingPhoto,
+  PersistedPhotoDeletion,
+  PersistedPhotoOrderEntry
+} from '@/utils/RecordNoteDraftDB'
 
 export interface SessionRecordNoteDraft {
   accountId: string
@@ -11,6 +15,10 @@ export interface SessionRecordNoteDraft {
   originalServerText: string
   updatedAt: number
   pendingPhotos?: PersistedPendingPhoto[]
+  pendingDeletions?: PersistedPhotoDeletion[]
+  recoverablePhotos?: PersistedPendingPhoto[]
+  photoOrder?: PersistedPhotoOrderEntry[]
+  photoBaselineIds?: number[]
 }
 
 const drafts = new Map<string, SessionRecordNoteDraft>()

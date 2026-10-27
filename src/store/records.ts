@@ -28,6 +28,9 @@ const state = reactive({
   // highest page reached so far, used to know how much to reload on refresh()
   loadedPages: 0,
   loading: false,
+  // Cache-busting versions keyed by record and photo id. Image URLs contain
+  // positions, so ordering refreshes the sources after a reorder as well.
+  photoVersions: {} as Record<number, Record<number, number>>
 })
 
 const fetchPageData = async (target: number) => {
@@ -194,6 +197,43 @@ const appendRecordPhoto = async (id: number, file: File): Promise<API.RecordPhot
   return res.data
 }
 
+const deleteRecordPhoto = async (id: number, position: number): Promise<void> => {
+  await Api.delete(`/api/admin/records/${id}/photos/${position}`)
+  const record = state.items[id]
+  if (record) {
+    record.photo_count = Math.max(0, (record.photo_count ?? 0) - 1)
+  }
+}
+
+const reorderRecordPhotos = async (
+  id: number,
+  expectedPhotoIds: number[],
+  photoIds: number[]
+): Promise<API.RecordPhotoList> => {
+  const body: API.RecordPhotoOrderRequest = {
+    expected_photo_ids: expectedPhotoIds,
+    photo_ids: photoIds
+  }
+  const res = await Api.put<API.RecordPhotoList>(`/api/admin/records/${id}/photos/order`, body)
+  return res.data
+}
+
+const bumpPhotoVersion = (recordId: number, photoId: number) => {
+  const versions = state.photoVersions[recordId] ?? {}
+  const version = Math.max(Date.now(), (versions[photoId] ?? 0) + 1)
+  state.photoVersions = {
+    ...state.photoVersions,
+    [recordId]: { ...versions, [photoId]: version }
+  }
+}
+
+// Append the per-photo version after ordering so the browser fetches image
+// bytes for the new positions instead of reusing cached content.
+const photoSrc = (recordId: number, photo: API.RecordPhoto) => {
+  const version = state.photoVersions[recordId]?.[photo.id]
+  return version ? `${photo.url}?v=${version}` : photo.url
+}
+
 const filterRecord = (record: API.Record, filters: typeof state.filters) => {
   let result = true
   for (const key in filters) {
@@ -262,5 +302,9 @@ export default reactive({
   revertRecord,
   reloadRecord,
   listRecordPhotos,
-  appendRecordPhoto
+  appendRecordPhoto,
+  deleteRecordPhoto,
+  reorderRecordPhotos,
+  bumpPhotoVersion,
+  photoSrc
 })

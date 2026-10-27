@@ -13,7 +13,7 @@
       </div>
       <n-text v-else depth="3">暂无处理记录</n-text>
 
-      <RecordPhotoGallery v-if="photos.length" :photos="photos" />
+      <RecordPhotoGallery v-if="photoItems.length" :items="photoItems" />
     </section>
 
     <RecordNoteEditorDialog
@@ -31,6 +31,7 @@ import RecordNoteEditorDialog from '@/components/RecordNoteEditorDialog.vue'
 import RecordNoteMarkdownView from '@/components/RecordNoteMarkdownView.vue'
 import RecordPhotoGallery from '@/components/RecordPhotoGallery.vue'
 import { records } from '@/store'
+import type { PhotoGalleryItem } from '@/utils/RecordPhotoEdits'
 import { useDialog } from 'naive-ui'
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
@@ -55,6 +56,18 @@ const visible = computed(
   () => !!props.record && (canEdit.value || hasNote.value || (props.record.photo_count ?? 0) > 0)
 )
 
+const photoItems = computed<PhotoGalleryItem[]>(() => {
+  const record = props.record
+  if (!record) return []
+  return photos.value.map((photo) => ({
+    key: `photo:${photo.id}`,
+    kind: 'photo',
+    photoId: photo.id,
+    src: records.photoSrc(record.id, photo),
+    alt: `处理照片 ${photo.position}`
+  }))
+})
+
 const loadPhotos = async () => {
   const record = props.record
   if (!record || (record.photo_count ?? 0) <= 0) {
@@ -76,7 +89,11 @@ const loadPhotos = async () => {
 }
 
 watch(
-  () => [props.record?.id, props.record?.photo_count],
+  () => [
+    props.record?.id,
+    props.record?.photo_count,
+    records.state.photoVersions[props.record?.id ?? 0]
+  ],
   () => {
     void loadPhotos()
   },

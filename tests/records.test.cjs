@@ -7,10 +7,9 @@ const ts = require('typescript')
 
 // Execute the real store with controlled network responses, without requiring
 // a browser or adding a test framework to the application.
-const source = ts.transpileModule(
-  readFileSync(`${__dirname}/../src/store/records.ts`, 'utf8'),
-  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }
-).outputText
+const source = ts.transpileModule(readFileSync(`${__dirname}/../src/store/records.ts`, 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+}).outputText
 
 function setup() {
   const requests = []
@@ -22,48 +21,68 @@ function setup() {
     require(name) {
       if (name === 'vue') return require('vue')
       if (name === '@/utils/Auth') return { default: { ready: async () => {} } }
-      if (name === '@/utils/Api') return { default: {
-        get(url) {
-          return new Promise((resolve, reject) => {
-            requests.push({
-              method: 'get',
-              url, reject,
-              respond(ids) {
-                resolve({ data: { items: ids.map(id => ({ id })) } })
-              }
-            })
-          })
-        },
-        put(url, body) {
-          return new Promise((resolve, reject) => {
-            requests.push({
-              method: 'put',
-              url, body, reject,
-              respond(record) {
-                resolve({ data: record })
-              }
-            })
-          })
-        },
-        post(url, body) {
-          return new Promise((resolve, reject) => {
-            requests.push({
-              method: 'post',
-              url, body, reject,
-              respond(photo) {
-                resolve({ data: photo })
-              }
-            })
-          })
+      if (name === '@/utils/Api')
+        return {
+          default: {
+            get(url) {
+              return new Promise((resolve, reject) => {
+                requests.push({
+                  method: 'get',
+                  url,
+                  reject,
+                  respond(ids) {
+                    resolve({ data: { items: ids.map((id) => ({ id })) } })
+                  }
+                })
+              })
+            },
+            put(url, body) {
+              return new Promise((resolve, reject) => {
+                requests.push({
+                  method: 'put',
+                  url,
+                  body,
+                  reject,
+                  respond(record) {
+                    resolve({ data: record })
+                  }
+                })
+              })
+            },
+            post(url, body) {
+              return new Promise((resolve, reject) => {
+                requests.push({
+                  method: 'post',
+                  url,
+                  body,
+                  reject,
+                  respond(photo) {
+                    resolve({ data: photo })
+                  }
+                })
+              })
+            },
+            delete(url) {
+              return new Promise((resolve, reject) => {
+                requests.push({
+                  method: 'delete',
+                  url,
+                  reject,
+                  respond() {
+                    resolve({ data: null })
+                  }
+                })
+              })
+            }
+          }
         }
-      } }
       throw new Error(`Unexpected import: ${name}`)
     }
   })
   return { records: exports.default, requests }
 }
 
-const settle = () => new Promise(resolve => setImmediate(resolve))
+const settle = () => new Promise((resolve) => setImmediate(resolve))
 
 test('updateWorkerDesc sends only worker_desc and stores the response', async () => {
   const { records, requests } = setup()
@@ -124,6 +143,63 @@ test('appendRecordPhoto posts one multipart photo and increments photo_count', a
   assert.equal(records.state.items[7].photo_count, 2)
 })
 
+test('reorderRecordPhotos sends expected and desired ids', async () => {
+  const { records, requests } = setup()
+  records.state.items = { 7: { id: 7, photo_count: 3 } }
+
+  const reorder = records.reorderRecordPhotos(7, [11, 12, 13], [13, 11, 12])
+  await settle()
+
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].method, 'put')
+  assert.equal(requests[0].url, '/api/admin/records/7/photos/order')
+  assert.deepEqual(Array.from(requests[0].body.expected_photo_ids), [11, 12, 13])
+  assert.deepEqual(Array.from(requests[0].body.photo_ids), [13, 11, 12])
+
+  requests[0].respond({
+    items: [
+      { id: 13, position: 1 },
+      { id: 11, position: 2 },
+      { id: 12, position: 3 }
+    ],
+    count: 3,
+    max_count: 9,
+    max_size_bytes: 10485760
+  })
+  const response = await reorder
+
+  assert.deepEqual(
+    response.items.map((photo) => photo.id),
+    [13, 11, 12]
+  )
+})
+
+test('deleteRecordPhoto deletes by position and decrements photo_count', async () => {
+  const { records, requests } = setup()
+  records.state.items = { 7: { id: 7, photo_count: 2 } }
+
+  const remove = records.deleteRecordPhoto(7, 1)
+  await settle()
+
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].method, 'delete')
+  assert.equal(requests[0].url, '/api/admin/records/7/photos/1')
+
+  requests[0].respond()
+  await remove
+  assert.equal(records.state.items[7].photo_count, 1)
+})
+
+test('photoSrc appends a cache-busting version after ordering', () => {
+  const { records } = setup()
+  const photo = { url: '/api/admin/records/7/photos/1' }
+  assert.equal(records.photoSrc(7, photo), photo.url)
+
+  records.bumpPhotoVersion(7, 12)
+  const first = records.photoSrc(7, { ...photo, id: 12 })
+  assert.match(first, /^\/api\/admin\/records\/7\/photos\/1\?v=\d+$/)
+})
+
 test('refresh during load more fetches page one again and includes new tickets', async () => {
   const { records, requests } = setup()
   records.state.items = { 619: { id: 619 } }
@@ -133,7 +209,9 @@ test('refresh during load more fetches page one again and includes new tickets',
   await settle()
   const refresh = records.refresh()
   let finished = false
-  refresh.then(() => { finished = true })
+  refresh.then(() => {
+    finished = true
+  })
   await settle()
   assert.equal(finished, false)
   assert.equal(requests.length, 1)
