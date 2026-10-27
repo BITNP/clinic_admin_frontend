@@ -18,6 +18,7 @@ function setup() {
   vm.runInNewContext(source, {
     exports,
     URLSearchParams,
+    FormData,
     require(name) {
       if (name === 'vue') return require('vue')
       if (name === '@/utils/Auth') return { default: { ready: async () => {} } }
@@ -40,6 +41,17 @@ function setup() {
               url, body, reject,
               respond(record) {
                 resolve({ data: record })
+              }
+            })
+          })
+        },
+        post(url, body) {
+          return new Promise((resolve, reject) => {
+            requests.push({
+              method: 'post',
+              url, body, reject,
+              respond(photo) {
+                resolve({ data: photo })
               }
             })
           })
@@ -80,6 +92,36 @@ test('updateWorkerDesc sends only worker_desc and stores the response', async ()
   assert.equal(records.state.items[7].worker_desc, 'new note')
   assert.equal(records.state.items[7].status, 'in_progress')
   assert.equal(records.state.items[7].revertible, true)
+})
+
+test('appendRecordPhoto posts one multipart photo and increments photo_count', async () => {
+  const { records, requests } = setup()
+  records.state.items = { 7: { id: 7, photo_count: 1 } }
+  const file = new File(['png-bytes'], 'repair.png', { type: 'image/png' })
+
+  const upload = records.appendRecordPhoto(7, file)
+  await settle()
+
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].method, 'post')
+  assert.equal(requests[0].url, '/api/admin/records/7/photos')
+  assert.ok(requests[0].body instanceof FormData)
+  const sent = requests[0].body.get('photo')
+  assert.equal(sent.name, 'repair.png')
+  assert.equal(sent.type, 'image/png')
+
+  requests[0].respond({
+    id: 11,
+    position: 2,
+    content_type: 'image/png',
+    size: 9,
+    created_at: '2026-10-27T12:00:00Z',
+    url: '/api/admin/records/7/photos/2'
+  })
+  const photo = await upload
+
+  assert.equal(photo.id, 11)
+  assert.equal(records.state.items[7].photo_count, 2)
 })
 
 test('refresh during load more fetches page one again and includes new tickets', async () => {

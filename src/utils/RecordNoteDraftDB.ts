@@ -8,6 +8,18 @@ const DB_NAME = 'clinic-record-note-drafts'
 const DB_VERSION = 1
 const STORE_NAME = 'drafts'
 
+export interface PersistedPendingPhoto {
+  clientId: string
+  name: string
+  type: string
+  size: number
+  lastModified: number
+  data: Blob
+  error?: string
+  uncertain?: boolean
+  baselinePhotoIds?: number[]
+}
+
 export interface RecordNoteDraftRecord {
   key: string
   accountId: string
@@ -16,6 +28,7 @@ export interface RecordNoteDraftRecord {
   originalServerText: string
   updatedAt: number
   version: number
+  pendingPhotos?: PersistedPendingPhoto[]
 }
 
 const draftKey = (accountId: string, recordId: number) => `${accountId}:${recordId}`

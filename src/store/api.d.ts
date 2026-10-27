@@ -51,6 +51,7 @@ namespace API {
     arrive_time: string | null
     finish_time: string | null
     worker_id: number | null
+    photo_count: number
     revertible?: boolean
     revertible_until?: string | null
     revertible_count?: number
@@ -62,6 +63,22 @@ namespace API {
     total: number
     page: number
     pageSize: number
+  }
+
+  type RecordPhoto = {
+    id: number
+    position: number
+    content_type: string
+    size: number
+    created_at: string
+    url: string
+  }
+
+  type RecordPhotoList = {
+    items: RecordPhoto[]
+    count: number
+    max_count: number
+    max_size_bytes: number
   }
 
   type RecordDesc = {

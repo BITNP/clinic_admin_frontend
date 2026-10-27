@@ -178,6 +178,22 @@ const reloadRecord = async (id: number) => {
   return res.data
 }
 
+const listRecordPhotos = async (id: number): Promise<API.RecordPhotoList> => {
+  const res = await Api.get<API.RecordPhotoList>(`/api/admin/records/${id}/photos`)
+  return res.data
+}
+
+const appendRecordPhoto = async (id: number, file: File): Promise<API.RecordPhoto> => {
+  const form = new FormData()
+  form.append('photo', file, file.name || 'photo')
+  const res = await Api.post<API.RecordPhoto>(`/api/admin/records/${id}/photos`, form)
+  const record = state.items[id]
+  if (record) {
+    record.photo_count = (record.photo_count ?? 0) + 1
+  }
+  return res.data
+}
+
 const filterRecord = (record: API.Record, filters: typeof state.filters) => {
   let result = true
   for (const key in filters) {
@@ -245,4 +261,6 @@ export default reactive({
   markNoShow,
   revertRecord,
   reloadRecord,
+  listRecordPhotos,
+  appendRecordPhoto
 })

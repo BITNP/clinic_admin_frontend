@@ -12,6 +12,8 @@
         <RecordNoteMarkdownView :markdown="record.worker_desc" />
       </div>
       <n-text v-else depth="3">暂无处理记录</n-text>
+
+      <RecordPhotoGallery v-if="photos.length" :photos="photos" />
     </section>
 
     <RecordNoteEditorDialog
@@ -27,8 +29,10 @@ import type API from '@/store/api'
 import { clearRecordNoteDrafts, hasUnsavedRecordNoteDrafts } from '@/utils/RecordNoteDrafts'
 import RecordNoteEditorDialog from '@/components/RecordNoteEditorDialog.vue'
 import RecordNoteMarkdownView from '@/components/RecordNoteMarkdownView.vue'
+import RecordPhotoGallery from '@/components/RecordPhotoGallery.vue'
+import { records } from '@/store'
 import { useDialog } from 'naive-ui'
-import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 
 const props = defineProps<{
@@ -38,14 +42,46 @@ const props = defineProps<{
 const dialog = useDialog()
 const editorOpen = ref(false)
 const editButtonRef = ref<ComponentPublicInstance | null>(null)
+const photos = ref<API.RecordPhoto[]>([])
 let leavePromptOpen = false
+let photosRequestId = 0
 
 const canEdit = computed(() => {
   return props.record?.status === 'in_progress' || props.record?.status === 'completed'
 })
 
 const hasNote = computed(() => (props.record?.worker_desc ?? '').trim().length > 0)
-const visible = computed(() => !!props.record && (canEdit.value || hasNote.value))
+const visible = computed(
+  () => !!props.record && (canEdit.value || hasNote.value || (props.record.photo_count ?? 0) > 0)
+)
+
+const loadPhotos = async () => {
+  const record = props.record
+  if (!record || (record.photo_count ?? 0) <= 0) {
+    photos.value = []
+    return
+  }
+  const requestId = ++photosRequestId
+  photos.value = []
+  try {
+    const list = await records.listRecordPhotos(record.id)
+    if (requestId === photosRequestId && props.record?.id === record.id) {
+      photos.value = list.items
+    }
+  } catch {
+    if (requestId === photosRequestId && props.record?.id === record.id) {
+      photos.value = []
+    }
+  }
+}
+
+watch(
+  () => [props.record?.id, props.record?.photo_count],
+  () => {
+    void loadPhotos()
+  },
+  { immediate: true }
+)
 
 const restoreEditFocus = () => {
   nextTick(() => {
