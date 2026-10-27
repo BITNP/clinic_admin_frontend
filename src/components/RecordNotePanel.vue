@@ -8,7 +8,9 @@
         </n-button>
       </n-space>
 
-      <div v-if="hasNote" class="note-preview">{{ record.worker_desc }}</div>
+      <div v-if="hasNote" class="note-preview">
+        <RecordNoteMarkdownView :markdown="record.worker_desc" />
+      </div>
       <n-text v-else depth="3">暂无处理记录</n-text>
     </section>
 
@@ -24,6 +26,7 @@
 import type API from '@/store/api'
 import { clearRecordNoteDrafts, hasUnsavedRecordNoteDrafts } from '@/utils/RecordNoteDrafts'
 import RecordNoteEditorDialog from '@/components/RecordNoteEditorDialog.vue'
+import RecordNoteMarkdownView from '@/components/RecordNoteMarkdownView.vue'
 import { useDialog } from 'naive-ui'
 import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
@@ -87,13 +90,10 @@ onBeforeRouteLeave(async () => {
 }
 
 .note-preview {
-  display: -webkit-box;
+  max-height: 9.5em;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
   line-height: 1.6;
   color: var(--n-text-color-2, #666);
+  mask-image: linear-gradient(to bottom, black 75%, transparent 100%);
 }
 </style>

@@ -22,27 +22,38 @@ function setup() {
   return { drafts: exports, listeners }
 }
 
-test('drafts are scoped per record and clear when they match saved text', () => {
+const draft = (accountId, recordId, text, originalServerText) => ({
+  accountId,
+  recordId,
+  text,
+  originalServerText,
+  updatedAt: 1
+})
+
+test('fallback drafts are scoped by account and record', () => {
   const { drafts } = setup()
 
   assert.equal(drafts.hasUnsavedRecordNoteDrafts(), false)
-  drafts.setRecordNoteDraft(1, 'record one draft', 'record one saved')
-  drafts.setRecordNoteDraft(2, 'record two draft', 'record two saved')
+  drafts.setSessionRecordNoteDraft(draft('alice', 1, 'alice draft', 'server'))
+  drafts.setSessionRecordNoteDraft(draft('bob', 1, 'bob draft', 'server'))
+  drafts.setSessionRecordNoteDraft(draft('alice', 2, 'other record', 'server'))
 
-  assert.equal(drafts.getRecordNoteDraft(1).text, 'record one draft')
-  assert.equal(drafts.getRecordNoteDraft(2).text, 'record two draft')
+  assert.equal(drafts.getSessionRecordNoteDraft('alice', 1).text, 'alice draft')
+  assert.equal(drafts.getSessionRecordNoteDraft('bob', 1).text, 'bob draft')
+  assert.equal(drafts.getSessionRecordNoteDraft('alice', 2).text, 'other record')
+  assert.equal(drafts.getSessionRecordNoteDraft('alice', 3), undefined)
   assert.equal(drafts.hasUnsavedRecordNoteDrafts(), true)
 
-  drafts.setRecordNoteDraft(1, 'record one saved', 'record one saved')
-  assert.equal(drafts.getRecordNoteDraft(1), undefined)
+  drafts.deleteSessionRecordNoteDraft('alice', 1)
+  assert.equal(drafts.getSessionRecordNoteDraft('alice', 1), undefined)
   assert.equal(drafts.hasUnsavedRecordNoteDrafts(), true)
 
   drafts.clearRecordNoteDrafts()
-  assert.equal(drafts.getRecordNoteDraft(2), undefined)
+  assert.equal(drafts.getSessionRecordNoteDraft('bob', 1), undefined)
   assert.equal(drafts.hasUnsavedRecordNoteDrafts(), false)
 })
 
-test('beforeunload warns only when a dirty draft exists', () => {
+test('beforeunload warns only while a fallback draft exists', () => {
   const { drafts, listeners } = setup()
   assert.equal(listeners.length, 1)
 
@@ -57,7 +68,7 @@ test('beforeunload warns only when a dirty draft exists', () => {
   listeners[0](event)
   assert.equal(event.prevented, false)
 
-  drafts.setRecordNoteDraft(5, 'dirty', 'saved')
+  drafts.setSessionRecordNoteDraft(draft('alice', 5, 'dirty', 'saved'))
   listeners[0](event)
   assert.equal(event.prevented, true)
 })

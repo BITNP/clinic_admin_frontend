@@ -1,36 +1,35 @@
-// In-memory drafts for worker notes. Drafts are intentionally scoped to the
-// browser session: closing the editor or moving between records keeps them, but
-// a refresh or tab close discards them (with a beforeunload warning).
+// In-memory fallback for drafts that could not be written to IndexedDB. An
+// entry here means the latest text is not durably stored, so refresh/tab close
+// and SPA navigation must warn before discarding it.
 
-export interface RecordNoteDraft {
+export interface SessionRecordNoteDraft {
+  accountId: string
+  recordId: number
   text: string
-  savedText: string
+  originalServerText: string
+  updatedAt: number
 }
 
-const drafts = new Map<number, RecordNoteDraft>()
+const drafts = new Map<string, SessionRecordNoteDraft>()
 
-export const getRecordNoteDraft = (recordId: number): RecordNoteDraft | undefined => {
-  return drafts.get(recordId)
+const draftKey = (accountId: string, recordId: number) => `${accountId}:${recordId}`
+
+export const getSessionRecordNoteDraft = (
+  accountId: string,
+  recordId: number
+): SessionRecordNoteDraft | undefined => {
+  return drafts.get(draftKey(accountId, recordId))
 }
 
-export const setRecordNoteDraft = (recordId: number, text: string, savedText: string) => {
-  if (text === savedText) {
-    drafts.delete(recordId)
-    return
-  }
-  drafts.set(recordId, { text, savedText })
+export const setSessionRecordNoteDraft = (draft: SessionRecordNoteDraft) => {
+  drafts.set(draftKey(draft.accountId, draft.recordId), draft)
 }
 
-export const discardRecordNoteDraft = (recordId: number) => {
-  drafts.delete(recordId)
+export const deleteSessionRecordNoteDraft = (accountId: string, recordId: number) => {
+  drafts.delete(draftKey(accountId, recordId))
 }
 
-export const hasUnsavedRecordNoteDrafts = (): boolean => {
-  for (const draft of drafts.values()) {
-    if (draft.text !== draft.savedText) return true
-  }
-  return false
-}
+export const hasUnsavedRecordNoteDrafts = (): boolean => drafts.size > 0
 
 export const clearRecordNoteDrafts = () => {
   drafts.clear()
