@@ -41,6 +41,7 @@ defineExpose({ getMarkdown })
 .record-note-markdown-editor :deep(.milkdown > .editor) {
   min-height: 280px;
   outline: none;
+  white-space: pre-wrap;
 }
 
 .record-note-markdown-editor :deep(.milkdown .editor p) {
@@ -74,5 +75,15 @@ defineExpose({ getMarkdown })
 
 .record-note-markdown-editor :deep(.milkdown .editor a) {
   color: var(--n-color-target, #18a058);
+}
+
+@media (max-height: 720px) {
+  .record-note-markdown-editor {
+    min-height: 220px;
+  }
+
+  .record-note-markdown-editor :deep(.milkdown > .editor) {
+    min-height: 180px;
+  }
 }
 </style>

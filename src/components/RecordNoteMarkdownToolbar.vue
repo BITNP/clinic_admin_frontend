@@ -88,7 +88,9 @@
       :options="sectionOptions"
       @select="insertSection"
     >
-      <n-button quaternary size="small" :disabled="loading">插入小节</n-button>
+      <n-button quaternary size="small" title="插入小节" aria-label="插入小节" :disabled="loading">
+        插入小节
+      </n-button>
     </n-dropdown>
   </div>
 </template>

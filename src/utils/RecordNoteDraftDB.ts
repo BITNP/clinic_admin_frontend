@@ -125,7 +125,12 @@ export const loadRecordNoteDraft = async (
     request.onerror = () => reject(request.error ?? new Error('failed to read draft'))
   })
 
-  if (!value || (value.version !== 1 && value.version !== RECORD_NOTE_DRAFT_VERSION)) {
+  if (
+    !value ||
+    value.accountId !== accountId ||
+    value.recordId !== recordId ||
+    (value.version !== 1 && value.version !== RECORD_NOTE_DRAFT_VERSION)
+  ) {
     return null
   }
   return value

@@ -41,6 +41,7 @@ const sanitize = async () => {
 
 .record-note-markdown-view :deep(.milkdown > .editor) {
   outline: none;
+  white-space: pre-wrap;
 }
 
 .record-note-markdown-view :deep(.milkdown .editor p) {

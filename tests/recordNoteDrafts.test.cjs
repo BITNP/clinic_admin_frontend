@@ -43,10 +43,20 @@ test('fallback drafts are scoped by account and record', () => {
   assert.equal(drafts.getSessionRecordNoteDraft('alice', 2).text, 'other record')
   assert.equal(drafts.getSessionRecordNoteDraft('alice', 3), undefined)
   assert.equal(drafts.hasUnsavedRecordNoteDrafts(), true)
+  assert.equal(drafts.hasUnsavedRecordNoteDrafts('alice'), true)
+  assert.equal(drafts.hasUnsavedRecordNoteDrafts('bob'), true)
+  assert.equal(drafts.hasUnsavedRecordNoteDrafts('carol'), false)
 
   drafts.deleteSessionRecordNoteDraft('alice', 1)
   assert.equal(drafts.getSessionRecordNoteDraft('alice', 1), undefined)
+  assert.equal(drafts.hasUnsavedRecordNoteDrafts('alice'), true)
   assert.equal(drafts.hasUnsavedRecordNoteDrafts(), true)
+
+  drafts.clearRecordNoteDrafts('alice')
+  assert.equal(drafts.getSessionRecordNoteDraft('alice', 2), undefined)
+  assert.equal(drafts.getSessionRecordNoteDraft('bob', 1).text, 'bob draft')
+  assert.equal(drafts.hasUnsavedRecordNoteDrafts('alice'), false)
+  assert.equal(drafts.hasUnsavedRecordNoteDrafts('bob'), true)
 
   drafts.clearRecordNoteDrafts()
   assert.equal(drafts.getSessionRecordNoteDraft('bob', 1), undefined)

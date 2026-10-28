@@ -141,6 +141,31 @@ export const movePhotoByStep = (
   return next
 }
 
+// Turn the mixed photo/pending identity list into the complete server photo id
+// order. Pending additions are ignored (they have no server id yet); server
+// photos missing from the draft order are appended in their current order.
+export const resolveDesiredPhotoOrder = (
+  order: PhotoOrderIdentity[],
+  expectedIds: number[]
+): number[] => {
+  const available = new Set(expectedIds)
+  const result: number[] = []
+  const seen = new Set<number>()
+
+  for (const identity of order) {
+    if (identity.kind !== 'photo') continue
+    if (!available.has(identity.photoId) || seen.has(identity.photoId)) continue
+    result.push(identity.photoId)
+    seen.add(identity.photoId)
+  }
+  for (const id of expectedIds) {
+    if (seen.has(id)) continue
+    result.push(id)
+    seen.add(id)
+  }
+  return result
+}
+
 // Deleting from the highest position first keeps every earlier position stable,
 // so multiple removals cannot make a later request target the wrong photo.
 export const orderDeletions = (

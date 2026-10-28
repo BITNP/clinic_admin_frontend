@@ -28,6 +28,10 @@ const state = reactive({
   // highest page reached so far, used to know how much to reload on refresh()
   loadedPages: 0,
   loading: false,
+  // Incremented whenever the record list is refreshed from the server. Views
+  // that cache per-record data (such as photo lists) use this to refresh even
+  // when photo_count did not change.
+  revision: 0,
   // Cache-busting versions keyed by record and photo id. Image URLs contain
   // positions, so ordering refreshes the sources after a reorder as well.
   photoVersions: {} as Record<number, Record<number, number>>
@@ -92,6 +96,7 @@ const refresh = async () => {
     state.items = next
     state.loadedPages = pages
     state.page = pages + 1
+    state.revision += 1
   })
 }
 

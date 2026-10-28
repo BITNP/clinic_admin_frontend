@@ -4,7 +4,7 @@
     <n-text>{{ props.record?.id }}</n-text>
   </n-h1>
   <n-space align="center">
-    <StatusBadge :status="record?.status" />
+    <StatusBadge v-if="record?.status" :status="record.status" />
     <StatusBadge
       v-if="showLiquidMetal"
       status="error"

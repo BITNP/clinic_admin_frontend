@@ -40,10 +40,26 @@ export const deleteSessionRecordNoteDraft = (accountId: string, recordId: number
   drafts.delete(draftKey(accountId, recordId))
 }
 
-export const hasUnsavedRecordNoteDrafts = (): boolean => drafts.size > 0
+const hasKeyForAccount = (key: string, accountId: string) => {
+  return key.startsWith(`${accountId}:`)
+}
 
-export const clearRecordNoteDrafts = () => {
-  drafts.clear()
+export const hasUnsavedRecordNoteDrafts = (accountId?: string): boolean => {
+  if (accountId === undefined) return drafts.size > 0
+  for (const key of drafts.keys()) {
+    if (hasKeyForAccount(key, accountId)) return true
+  }
+  return false
+}
+
+export const clearRecordNoteDrafts = (accountId?: string) => {
+  if (accountId === undefined) {
+    drafts.clear()
+    return
+  }
+  for (const key of [...drafts.keys()]) {
+    if (hasKeyForAccount(key, accountId)) drafts.delete(key)
+  }
 }
 
 if (typeof window !== 'undefined') {

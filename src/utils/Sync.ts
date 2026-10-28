@@ -19,7 +19,7 @@ const GROUP_TO_PART: Record<string, StorePart> = {
   work_schedule: 'workSchedules',
   service_date: 'schedule',
   staff: 'staff',
-  announcement: 'announcements',
+  announcement: 'announcements'
 }
 
 type Counters = Record<string, number>
@@ -108,7 +108,7 @@ class SyncBase {
       this.fetchConfig(),
       this.fetch().catch((e) => {
         console.error('sync: initial fetch failed', e)
-      }),
+      })
     ])
     this.schedule()
   }
@@ -211,6 +211,17 @@ class SyncBase {
 
     // Defer while the user is editing so a refresh cannot discard unsaved input.
     if (isEditing()) return
+    await this.flushPending()
+  }
+
+  // flushNow applies queued refreshes immediately, for example after an editor
+  // dialog closes. It still obeys the editing guard if focus is in another field.
+  async flushNow() {
+    if (!this.running) return
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = null
+    }
     await this.flushPending()
   }
 

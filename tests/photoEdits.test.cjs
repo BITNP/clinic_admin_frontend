@@ -117,6 +117,13 @@ test('reconcile appends new photos and pending uploads in natural order', () => 
   ])
 })
 
+test('desired server order ignores pending identities and appends missing ids', () => {
+  const { resolveDesiredPhotoOrder } = load()
+  const order = [photoKey(3), pendingKey('p1'), photoKey(1)]
+  assert.deepEqual(Array.from(resolveDesiredPhotoOrder(order, [1, 2, 3])), [3, 1, 2])
+  assert.deepEqual(Array.from(resolveDesiredPhotoOrder([pendingKey('p1')], [1, 2])), [1, 2])
+})
+
 test('photo sequence conflict ignores staged deletion targets', () => {
   const { isPhotoSequenceUnchanged } = load()
   const baseline = [1, 2, 3, 4]

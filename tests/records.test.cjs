@@ -200,6 +200,21 @@ test('photoSrc appends a cache-busting version after ordering', () => {
   assert.match(first, /^\/api\/admin\/records\/7\/photos\/1\?v=\d+$/)
 })
 
+test('refresh bumps the revision so photo caches can reload without a count change', async () => {
+  const { records, requests } = setup()
+  records.state.items = { 7: { id: 7, photo_count: 3 } }
+  records.state.loadedPages = 1
+  records.state.page = 2
+  const before = records.state.revision
+
+  const refresh = records.refresh()
+  await settle()
+  requests[0].respond([7])
+  await refresh
+
+  assert.equal(records.state.revision, before + 1)
+})
+
 test('refresh during load more fetches page one again and includes new tickets', async () => {
   const { records, requests } = setup()
   records.state.items = { 619: { id: 619 } }

@@ -1,10 +1,11 @@
 <template>
   <div v-if="items.length || deletedItems.length" class="record-photo-groups">
-    <n-image-group v-if="items.length">
+    <n-image-group v-if="items.length" show-toolbar-tooltip>
       <div class="record-photo-gallery">
         <div
-          v-for="(item, index) in items"
+          v-for="item in items"
           :key="item.key"
+          :data-photo-key="item.key"
           class="record-photo-item"
           :class="{
             dragging: draggingKey === item.key,
@@ -84,9 +85,14 @@
 
     <section v-if="deletedItems.length" class="deleted-photo-section">
       <n-text depth="3" class="deleted-photo-heading">待删除</n-text>
-      <n-image-group>
+      <n-image-group show-toolbar-tooltip>
         <div class="record-photo-gallery">
-          <div v-for="item in deletedItems" :key="item.key" class="record-photo-item is-deleted">
+          <div
+            v-for="item in deletedItems"
+            :key="item.key"
+            :data-photo-key="item.key"
+            class="record-photo-item is-deleted"
+          >
             <div class="record-photo-preview">
               <n-image
                 :src="item.src"

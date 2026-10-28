@@ -6,6 +6,7 @@
     :mask-closable="false"
     :close-on-esc="false"
     :auto-focus="false"
+    :trap-focus="true"
     :closable="!saving && !draftLoading"
     :on-close="requestClose"
     :on-esc="requestClose"
@@ -44,7 +45,9 @@
       </div>
     </template>
 
-    <div class="note-editor-body" @paste.capture="handlePaste">
+    <div class="sr-only" aria-live="polite" aria-atomic="true">{{ liveAnnouncement }}</div>
+
+    <div class="note-editor-body" :aria-busy="saving" @paste.capture="handlePaste">
       <n-alert
         v-if="hasConflict"
         type="warning"
@@ -109,10 +112,6 @@
             重试
           </n-button>
         </n-alert>
-
-        <n-text depth="3" class="photo-hint">
-          点击缩略图可查看大图。拖动缩略图上的手柄可排序，也可以使用前移/后移。删除和排序会在保存后应用。删除的照片会从服务器删除，记录的“后悔药”不会恢复已删除的照片。
-        </n-text>
 
         <n-alert
           v-if="recoverablePhotos.length"
@@ -206,13 +205,19 @@
     <template #footer>
       <n-space justify="end" :wrap="true">
         <n-button :disabled="saving || draftLoading" @click="requestClose">返回</n-button>
-        <n-button :loading="savingAction === 'save'" :disabled="!canSave" @click="save(false)">
+        <n-button
+          :loading="savingAction === 'save'"
+          :disabled="!canSave"
+          title="保存 (Ctrl+S)"
+          @click="save(false)"
+        >
           保存
         </n-button>
         <n-button
           type="primary"
           :loading="savingAction === 'save-close'"
           :disabled="!canSave"
+          title="保存并关闭 (Ctrl+S)"
           @click="save(true)"
         >
           保存并关闭
@@ -228,6 +233,7 @@ import { records } from '@/store'
 import RecordNoteMarkdownEditor from '@/components/RecordNoteMarkdownEditor.vue'
 import RecordPhotoGallery from '@/components/RecordPhotoGallery.vue'
 import Auth from '@/utils/Auth'
+import { apiErrorText, isUncertainRequestError, responseStatus } from '@/utils/ApiError'
 import {
   deleteSessionRecordNoteDraft,
   getSessionRecordNoteDraft,
@@ -251,6 +257,7 @@ import {
   orderDeletions,
   photoIdentityKey,
   reconcilePhotoOrder,
+  resolveDesiredPhotoOrder,
   type PendingPhotoDeletion,
   type PhotoGalleryItem,
   type PhotoMoveRequest,
@@ -311,6 +318,7 @@ const draftLoading = ref(false)
 const saving = ref(false)
 const savingAction = ref<'save' | 'save-close' | null>(null)
 const persistState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const liveAnnouncement = ref('')
 const editorRevision = ref(0)
 const problemExpanded = ref(false)
 
@@ -337,6 +345,10 @@ let draftGeneration = 0
 let openRequestId = 0
 let photosRequestId = 0
 const pendingPhotoRevision = ref(0)
+const draftRecordId = ref<number | null>(null)
+const draftAccountId = ref('')
+let draftContextRevision = 0
+let disposed = false
 
 const isDirty = computed(() => editorText.value !== savedText.value)
 const hasConflict = computed(() => conflictServerText.value !== null)
@@ -462,26 +474,6 @@ const fileContentType = (file: File) => {
   return ''
 }
 
-const errorText = (error: unknown) => {
-  const response = (
-    error as { response?: { status?: number; data?: { error?: string; msg?: string } } }
-  )?.response
-  if (response?.status === 401 || response?.status === 403) {
-    return '身份验证失败，请重新登录后重试。'
-  }
-  return response?.data?.error || response?.data?.msg || ''
-}
-
-const responseStatus = (error: unknown) => {
-  return (error as { response?: { status?: number } })?.response?.status
-}
-
-const isUncertainUploadError = (error: unknown) => {
-  const status = responseStatus(error)
-  if (status === undefined) return true
-  return status === 408 || status >= 500
-}
-
 const photoStatusLabel = (status: PendingPhotoStatus) => {
   switch (status) {
     case 'pending':
@@ -507,7 +499,7 @@ const persistablePendingPhotos = (source: PendingPhoto[]): PersistedPendingPhoto
       data: photo.file,
       error: photo.error,
       uncertain: photo.uncertain,
-      baselinePhotoIds: photo.baselinePhotoIds
+      baselinePhotoIds: [...photo.baselinePhotoIds]
     }))
 }
 
@@ -567,11 +559,11 @@ const draftHasPhotoWork = (draft: {
 }
 
 const draftSnapshot = () => {
-  const record = props.record
-  if (!record) return null
+  const recordId = draftRecordId.value
+  if (recordId === null) return null
   return {
-    accountId: currentAccountId(),
-    recordId: record.id,
+    accountId: draftAccountId.value,
+    recordId,
     text: editorText.value,
     originalServerText: draftOriginalServerText.value,
     updatedAt: Date.now(),
@@ -656,11 +648,18 @@ const syncPhotoOrder = (storedOrder?: PhotoOrderIdentity[], adoptServerOrder = f
 }
 
 const clearPendingWork = (keepRecoverable = false) => {
-  revokePhotoPreviews()
+  for (const photo of pendingPhotos.value) {
+    if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
+  }
   pendingPhotos.value = []
   pendingDeletions.value = []
   photoOrder.value = []
-  if (!keepRecoverable) recoverablePhotos.value = []
+  if (!keepRecoverable) {
+    for (const photo of recoverablePhotos.value) {
+      if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)
+    }
+    recoverablePhotos.value = []
+  }
 }
 
 const cancelDraftTimer = () => {
@@ -671,14 +670,13 @@ const cancelDraftTimer = () => {
 }
 
 const removeLocalDrafts = async () => {
-  const record = props.record
-  if (!record) return
-
-  const accountId = currentAccountId()
-  deleteSessionRecordNoteDraft(accountId, record.id)
+  const recordId = draftRecordId.value
+  if (recordId === null) return
+  const accountId = draftAccountId.value
+  deleteSessionRecordNoteDraft(accountId, recordId)
   if (!accountId) return
   try {
-    await deleteRecordNoteDraft(accountId, record.id)
+    await deleteRecordNoteDraft(accountId, recordId)
   } catch (error) {
     console.warn('failed to remove local note draft', error)
   }
@@ -688,10 +686,15 @@ const persistLatestDraft = async (): Promise<boolean> => {
   if (persistRun) return persistRun
   cancelDraftTimer()
 
+  const contextRevision = draftContextRevision
   persistRun = (async () => {
     for (;;) {
+      if (contextRevision !== draftContextRevision) return true
       const draft = draftSnapshot()
       if (!draft) return true
+      if (draft.accountId !== draftAccountId.value || currentAccountId() !== draft.accountId) {
+        return false
+      }
       if (
         draft.text === draft.originalServerText &&
         !hasConflict.value &&
@@ -719,6 +722,7 @@ const persistLatestDraft = async (): Promise<boolean> => {
       persistState.value = 'saving'
       try {
         await saveRecordNoteDraft(draft)
+        if (contextRevision !== draftContextRevision) return true
       } catch (error) {
         if (generation === draftGeneration) {
           setSessionRecordNoteDraft(draft)
@@ -825,9 +829,9 @@ const loadPhotosForRecord = async (recordId?: number): Promise<API.RecordPhotoLi
       }
     }
     return list
-  } catch {
+  } catch (error) {
     if (requestId === photosRequestId && props.record?.id === target) {
-      photosError.value = '照片列表加载失败，请重试。'
+      photosError.value = apiErrorText(error, '照片列表加载失败，请重试。')
       if (photos.value.length === 0 && maxCount.value === null) {
         photos.value = []
         maxCount.value = null
@@ -855,9 +859,9 @@ const refreshPhotosFromServer = async (recordId: number): Promise<API.RecordPhot
       else syncPhotoOrder(undefined, true)
     }
     return list
-  } catch {
+  } catch (error) {
     if (props.record?.id === recordId) {
-      photosError.value = '照片列表刷新失败，请重试。'
+      photosError.value = apiErrorText(error, '照片列表刷新失败，请重试。')
     }
     return null
   }
@@ -1159,12 +1163,16 @@ const reconcileUncertainPhotos = async (
 }
 
 const uploadPendingPhotos = async (
-  recordId: number
+  recordId: number,
+  shouldContinue?: () => boolean
 ): Promise<{ uploaded: number; failed: number; stopped: boolean }> => {
   let uploaded = 0
   let failed = 0
 
   for (const photo of [...pendingPhotos.value]) {
+    if (shouldContinue && !shouldContinue()) {
+      return { uploaded, failed, stopped: true }
+    }
     if (photo.status === 'uploaded') continue
     if (photo.status === 'failed' && photo.uncertain) {
       photo.error = photo.error ?? '上次上传状态未知，请稍后重试。'
@@ -1186,12 +1194,12 @@ const uploadPendingPhotos = async (
       uploaded += 1
       await flushDraft()
     } catch (error) {
-      const uncertain = isUncertainUploadError(error)
+      const uncertain = isUncertainRequestError(error)
       photo.status = 'failed'
       photo.uncertain = uncertain
       photo.error = uncertain
         ? '上传状态未知，将在重试前先核对服务器照片。'
-        : errorText(error) || '照片上传失败。'
+        : apiErrorText(error) || '照片上传失败。'
       failed += 1
       await flushDraft()
       return { uploaded, failed, stopped: true }
@@ -1243,7 +1251,11 @@ const initialize = async () => {
   const record = props.record
   if (!record) return
 
+  const accountId = currentAccountId()
   const requestId = ++openRequestId
+  draftContextRevision += 1
+  draftRecordId.value = record.id
+  draftAccountId.value = accountId
   draftLoading.value = true
   suppressDraftWatch = true
   conflictServerText.value = null
@@ -1267,7 +1279,6 @@ const initialize = async () => {
   let migratedDraft = false
 
   try {
-    const accountId = currentAccountId()
     const sessionDraft = getSessionRecordNoteDraft(accountId, record.id)
     let draft: LoadedDraft | null = sessionDraft ?? null
     let storageError = !accountId
@@ -1293,7 +1304,12 @@ const initialize = async () => {
       draft = null
     }
 
-    if (requestId !== openRequestId || !props.show || props.record?.id !== record.id) {
+    if (
+      requestId !== openRequestId ||
+      !props.show ||
+      props.record?.id !== record.id ||
+      currentAccountId() !== accountId
+    ) {
       return
     }
 
@@ -1356,14 +1372,14 @@ const initialize = async () => {
     if (requestId === openRequestId) {
       draftLoading.value = false
       suppressDraftWatch = false
-      const sessionDraft = getSessionRecordNoteDraft(currentAccountId(), record.id)
+      const sessionDraft = getSessionRecordNoteDraft(accountId, record.id)
       if (
         sessionDraft &&
         (sessionDraft.text !== sessionDraft.originalServerText || draftHasPhotoWork(sessionDraft))
       ) {
         void persistLatestDraft()
       } else if (sessionDraft) {
-        deleteSessionRecordNoteDraft(currentAccountId(), record.id)
+        deleteSessionRecordNoteDraft(accountId, record.id)
       }
       if (migratedDraft) {
         void persistLatestDraft()
@@ -1430,8 +1446,7 @@ watch(
 
 watch(editorText, (text) => {
   if (suppressDraftWatch || draftLoading.value) return
-  const record = props.record
-  if (!record) return
+  if (draftRecordId.value === null) return
 
   if (
     text === savedText.value &&
@@ -1494,7 +1509,9 @@ const onEditorReady = (markdown: string | undefined) => {
 // Milkdown debounces its markdown update event. Read the current document
 // directly before saving or closing so the last keystrokes are not lost.
 const syncEditorText = () => {
-  if (!editorReady.value) return
+  // Do not require the ready event here. If the user saves immediately after
+  // opening the dialog, getMarkdown() may already work while the ready event is
+  // still pending; requiring it would drop the last edit from the save request.
   const latest = editorRef.value?.getMarkdown()
   if (latest === undefined) return
 
@@ -1513,8 +1530,10 @@ const syncEditorText = () => {
 }
 
 function focusEditor() {
+  if (disposed) return
   let attempts = 0
   const tryFocus = () => {
+    if (disposed || !props.show) return
     const element = document.querySelector(
       '.record-note-markdown-editor .milkdown .editor'
     ) as HTMLElement | null
@@ -1576,33 +1595,28 @@ const saveTextDraft = async (recordId: number): Promise<boolean> => {
     }
     return true
   } catch (error) {
-    message.error(errorText(error) || '正文保存失败，请重试')
+    const text = apiErrorText(error) || '正文保存失败，请重试'
+    liveAnnouncement.value = text
+    message.error(text)
     return false
   }
 }
 
-const resolveDesiredPhotoOrder = (expectedIds: number[]): number[] => {
-  const available = new Set(expectedIds)
-  const result: number[] = []
-  const seen = new Set<number>()
-
-  for (const identity of photoOrder.value) {
-    if (identity.kind !== 'photo') continue
-    if (!available.has(identity.photoId) || seen.has(identity.photoId)) continue
-    result.push(identity.photoId)
-    seen.add(identity.photoId)
-  }
-  for (const id of expectedIds) {
-    if (seen.has(id)) continue
-    result.push(id)
-    seen.add(id)
-  }
-  return result
-}
-
 const performSave = async (closeAfter: boolean) => {
   const record = props.record
-  if (!record || saving.value || draftLoading.value || hasConflict.value) return
+  const recordId = draftRecordId.value
+  const accountId = draftAccountId.value
+  if (
+    !record ||
+    recordId === null ||
+    props.record?.id !== recordId ||
+    currentAccountId() !== accountId ||
+    saving.value ||
+    draftLoading.value ||
+    hasConflict.value
+  ) {
+    return
+  }
   syncEditorText()
 
   let textChanged = isDirty.value
@@ -1611,8 +1625,18 @@ const performSave = async (closeAfter: boolean) => {
   const deletionWorkRequested = pendingDeletions.value.length > 0
   if (!textChanged && !photoWorkRequested) return
 
-  const recordId = record.id
+  const isCurrentContext = () => {
+    return (
+      !disposed &&
+      props.show &&
+      draftRecordId.value === recordId &&
+      props.record?.id === recordId &&
+      currentAccountId() === accountId
+    )
+  }
+
   photoErrors.value = []
+  liveAnnouncement.value = '正在保存更改'
   saving.value = true
   savingAction.value = closeAfter ? 'save-close' : 'save'
 
@@ -1636,8 +1660,10 @@ const performSave = async (closeAfter: boolean) => {
     let latestRecord: API.Record
     try {
       latestRecord = await records.reloadRecord(recordId)
-    } catch {
-      message.error('无法读取服务器最新状态，请重试。')
+    } catch (error) {
+      const text = apiErrorText(error, '无法读取服务器最新状态，请重试。')
+      liveAnnouncement.value = text
+      message.error(text)
       await flushDraft()
       return
     }
@@ -1645,17 +1671,19 @@ const performSave = async (closeAfter: boolean) => {
     let latestList: API.RecordPhotoList | null = null
     try {
       latestList = await records.listRecordPhotos(recordId)
-    } catch {
+    } catch (error) {
       // A text-only save does not depend on the photo list. Photo work does, so
       // stop before mutating anything when positions cannot be verified.
       if (photoWorkRequested) {
-        message.error('无法读取服务器照片列表，请重试。')
+        const text = apiErrorText(error, '无法读取服务器照片列表，请重试。')
+        liveAnnouncement.value = text
+        message.error(text)
         await flushDraft()
         return
       }
     }
 
-    if (props.record?.id !== recordId || !props.show) return
+    if (!isCurrentContext()) return
 
     if (latestList) {
       photos.value = latestList.items
@@ -1693,6 +1721,7 @@ const performSave = async (closeAfter: boolean) => {
       } else {
         savedText.value = latestText
         conflictServerText.value = latestText
+        liveAnnouncement.value = '保存暂停：服务器上的处理记录已变化，请先处理冲突。'
         message.warning('服务器上的处理记录已变化，请先处理冲突。')
         await flushDraft()
         return
@@ -1714,6 +1743,7 @@ const performSave = async (closeAfter: boolean) => {
       photoErrors.value = [
         '照片列表已在服务器上变化，已刷新。请确认照片顺序和待删除照片后再次保存。'
       ]
+      liveAnnouncement.value = '保存暂停：照片列表已在服务器上变化，请确认后重试。'
       await flushDraft()
       message.warning('照片列表已变化，请确认后重试')
       return
@@ -1756,6 +1786,7 @@ const performSave = async (closeAfter: boolean) => {
     if (!stopped) {
       const deletions = orderDeletions(pendingDeletions.value, photos.value)
       for (const deletion of deletions) {
+        if (!isCurrentContext()) return
         const photo = photos.value.find((item) => item.id === deletion.photoId)
         if (!photo) {
           removeDeletion(deletion.photoId)
@@ -1774,12 +1805,12 @@ const performSave = async (closeAfter: boolean) => {
           photos.value = photos.value.filter((item) => item.id !== deletion.photoId)
           await flushDraft()
         } catch (error) {
-          const uncertain = isUncertainUploadError(error)
+          const uncertain = isUncertainRequestError(error)
           deletion.status = 'failed'
           deletion.uncertain = uncertain
           deletion.error = uncertain
             ? '删除状态未知，重试前会先核对服务器照片。'
-            : errorText(error) || '照片删除失败。'
+            : apiErrorText(error) || '照片删除失败。'
           stopped = true
           await flushDraft()
           break
@@ -1789,7 +1820,8 @@ const performSave = async (closeAfter: boolean) => {
 
     // 5. Upload additions after deletions have freed any limit slots.
     if (!stopped) {
-      const result = await uploadPendingPhotos(recordId)
+      if (!isCurrentContext()) return
+      const result = await uploadPendingPhotos(recordId, isCurrentContext)
       uploaded += result.uploaded
       if (result.stopped) stopped = true
       syncPhotoOrder()
@@ -1799,9 +1831,14 @@ const performSave = async (closeAfter: boolean) => {
     // are the order this client believes the server currently has; the backend
     // returns 409 if another user changed it.
     let reorderedList: API.RecordPhotoList | null = null
-    if (!stopped && pendingPhotos.value.length === 0 && pendingDeletions.value.length === 0) {
+    if (
+      !stopped &&
+      pendingPhotos.value.length === 0 &&
+      pendingDeletions.value.length === 0 &&
+      isCurrentContext()
+    ) {
       const expectedIds = photos.value.map((photo) => photo.id)
-      const desiredIds = resolveDesiredPhotoOrder(expectedIds)
+      const desiredIds = resolveDesiredPhotoOrder(photoOrder.value, expectedIds)
       if (!isSamePhotoSequence(expectedIds, desiredIds)) {
         try {
           reorderedList = await records.reorderRecordPhotos(recordId, expectedIds, desiredIds)
@@ -1819,14 +1856,14 @@ const performSave = async (closeAfter: boolean) => {
           await flushDraft()
         } catch (error) {
           const status = responseStatus(error)
-          const uncertain = isUncertainUploadError(error)
+          const uncertain = isUncertainRequestError(error)
           stopped = true
           photoErrors.value = [
             status === 409 || status === 400
               ? '照片顺序冲突：服务器上的照片列表已变化，请重试。'
               : uncertain
                 ? '照片顺序保存结果未知，请重试以重新核对。'
-                : errorText(error) || '照片顺序保存失败。'
+                : apiErrorText(error) || '照片顺序保存失败。'
           ]
           await flushDraft()
         }
@@ -1856,6 +1893,7 @@ const performSave = async (closeAfter: boolean) => {
       await records.reloadRecord(recordId).catch(() => {})
     }
 
+    if (!isCurrentContext()) return
     const allSucceeded =
       textSaved &&
       !isDirty.value &&
@@ -1899,14 +1937,19 @@ const performSave = async (closeAfter: boolean) => {
     if (orderPending) parts.push('照片顺序待保存')
     if (!finalRefreshOk) parts.push('照片列表刷新失败')
 
+    const summary = parts.length ? parts.join('，') : ''
     if (allSucceeded) {
-      message.success(parts.length ? parts.join('，') : '保存成功')
+      liveAnnouncement.value = summary ? `保存成功：${summary}` : '保存成功'
+      message.success(summary || '保存成功')
       if (closeAfter) emit('update:show', false)
     } else {
-      message.warning(parts.length ? parts.join('，') : '保存未完成，请重试')
+      liveAnnouncement.value = summary ? `保存未完成：${summary}` : '保存未完成，请重试'
+      message.warning(summary || '保存未完成，请重试')
     }
   } catch (error) {
-    message.error(errorText(error) || '保存失败，请重试')
+    const text = apiErrorText(error) || '保存失败，请重试'
+    liveAnnouncement.value = text
+    message.error(text)
   } finally {
     saving.value = false
     savingAction.value = null
@@ -1972,12 +2015,17 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 onMounted(() => {
+  disposed = false
   window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
+  disposed = true
+  openRequestId += 1
+  photosRequestId += 1
   window.removeEventListener('keydown', handleKeydown)
   cancelDraftTimer()
+  void persistLatestDraft()
   revokePhotoPreviews()
 })
 </script>
@@ -2003,6 +2051,18 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .note-editor-header {
   display: flex;
   flex-direction: column;
@@ -2064,42 +2124,6 @@ onUnmounted(() => {
 
 .photo-alert {
   margin: 0;
-}
-
-.pending-photo-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.pending-photo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 112px;
-}
-
-.pending-photo-image {
-  overflow: hidden;
-  border-radius: 6px;
-  border: 1px solid var(--n-border-color, #eee);
-}
-
-.pending-photo-meta {
-  min-height: 52px;
-}
-
-.photo-name {
-  max-width: 112px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-}
-
-.photo-error {
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 .photo-add {
