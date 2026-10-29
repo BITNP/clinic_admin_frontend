@@ -13,6 +13,12 @@
         {{ record.worker_realname ?? '' }}
       </n-thing>
     </n-grid-item>
+    <n-grid-item v-if="record.approver_id">
+      <n-thing>
+        <template #header>审批人员</template>
+        {{ record.approver_realname ?? '' }}
+      </n-thing>
+    </n-grid-item>
     <n-grid-item v-if="record.arrive_time">
       <n-thing>
         <template #header>到达时间</template>
