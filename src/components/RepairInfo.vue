@@ -10,8 +10,7 @@
     <n-grid-item v-if="record.worker_id">
       <n-thing>
         <template #header>处理人员</template>
-        <n-skeleton text width="100px" v-if="!props.worker?.realname" />
-        {{ props.worker?.realname ?? '' }}
+        {{ record.worker_realname ?? '' }}
       </n-thing>
     </n-grid-item>
     <n-grid-item v-if="record.arrive_time">
@@ -44,8 +43,7 @@
 <script setup lang="ts">
 import type API from '@/store/api'
 
-const props = defineProps<{
+defineProps<{
   record: API.Record | null
-  worker: API.IUsers | null
 }>()
 </script>

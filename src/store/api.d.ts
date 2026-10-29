@@ -51,6 +51,7 @@ namespace API {
     arrive_time: string | null
     finish_time: string | null
     worker_id: number | null
+    worker_realname?: string
     photo_count: number
     revertible?: boolean
     revertible_until?: string | null

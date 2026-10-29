@@ -100,7 +100,6 @@ import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 
 const props = defineProps<{
   record: API.Record | null
-  worker: API.IUsers | null
 }>()
 
 const message = useMessage()

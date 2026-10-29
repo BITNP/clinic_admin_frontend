@@ -9,8 +9,8 @@
         <n-h2 prefix="bar" align-text style="margin-top: 28px;">
           处理情况
         </n-h2>
-        <RepairInfo :worker="worker" :record="record" />
-        <RepairStatus :worker="worker" :record="record" />
+        <RepairInfo :record="record" />
+        <RepairStatus :record="record" />
         <RecordNotePanel v-if="record" :record="record" />
       </n-grid-item>
     </n-grid>
@@ -35,7 +35,6 @@
 <script setup lang="tsx">
 import type API from '@/store/api';
 import { records } from '@/store';
-import Api from '@/utils/Api';
 import { useMessage } from 'naive-ui';
 import { onMounted, onUpdated, ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
@@ -63,10 +62,9 @@ const toNextRecord = () => {
 
 const record = ref<API.Record | null>(null)
 const owner = ref<API.IUsers | null>(null)
-const worker = ref<API.IUsers | null>(null)
 const currentId = ref<number>(0)
 
-const loadRecord = async () => {
+const loadRecord = () => {
   currentId.value = parseInt(props.recordId)
   record.value = records.state.items[parseInt(props.recordId)]!
 
@@ -88,16 +86,6 @@ const loadRecord = async () => {
       role: ""
     }
   }
-
-  // worker info can be fetched by staff ID
-  if (record.value?.worker_id) {
-    try {
-      const res = await Api.get<API.IUsers>(`/api/admin/staff/${record.value.worker_id}`)
-      worker.value = res.data
-    } catch {
-      worker.value = null
-    }
-  }
 }
 
 onMounted(async () => {
@@ -106,7 +94,6 @@ onMounted(async () => {
 })
 onUpdated(() => {
   owner.value = null
-  worker.value = null
   loadRecord()
 })
 
