@@ -303,3 +303,94 @@ test('failed refresh preserves the old list, rejects, and allows retry', async (
   assert.ok(records.state.items[620])
   assert.equal(records.state.loading, false)
 })
+
+test('applyQuery reloads page one with every server-side filter', async () => {
+  const { records, requests } = setup()
+  records.state.items = { 42: { id: 42 } }
+  records.state.loadedPages = 3
+  records.state.page = 4
+
+  const apply = records.applyQuery({
+    realname: ' 张三 ',
+    status: 'completed',
+    roomID: 7,
+    date: '2026-01-02'
+  })
+  await settle()
+
+  assert.equal(requests.length, 1)
+  const url = new URL(requests[0].url, 'http://localhost')
+  assert.equal(url.pathname, '/api/admin/records')
+  assert.equal(url.searchParams.get('page'), '1')
+  assert.equal(url.searchParams.get('realname'), '张三')
+  assert.equal(url.searchParams.get('status'), 'completed')
+  assert.equal(url.searchParams.get('room_id'), '7')
+  assert.equal(url.searchParams.get('from_date'), '2026-01-02')
+  assert.equal(url.searchParams.get('to_date'), '2026-01-02')
+
+  requests[0].respond([9])
+  await apply
+
+  assert.deepEqual(Object.keys(records.state.items), ['9'])
+  assert.equal(records.state.loadedPages, 1)
+  assert.equal(records.state.page, 2)
+})
+
+test('load more keeps the filters applied by applyQuery', async () => {
+  const { records, requests } = setup()
+  const apply = records.applyQuery({ realname: '张三', status: 'pending', roomID: 3 })
+  await settle()
+  requests[0].respond([20])
+  await apply
+
+  const more = records.loadMore()
+  await settle()
+
+  const url = new URL(requests[1].url, 'http://localhost')
+  assert.equal(url.searchParams.get('page'), '2')
+  assert.equal(url.searchParams.get('realname'), '张三')
+  assert.equal(url.searchParams.get('status'), 'pending')
+  assert.equal(url.searchParams.get('room_id'), '3')
+  assert.equal(url.searchParams.has('from_date'), false)
+
+  requests[1].respond([19])
+  await more
+  assert.equal(records.state.items[19].id, 19)
+  assert.equal(records.state.page, 3)
+})
+
+test('applying the same query twice does not fetch again', async () => {
+  const { records, requests } = setup()
+  const first = records.applyQuery({ realname: '张三', status: 'completed' })
+  await settle()
+  requests[0].respond([9])
+  await first
+
+  await records.applyQuery({ realname: '张三', status: 'completed' })
+  await settle()
+
+  assert.equal(requests.length, 1)
+})
+
+test('a partial query keeps the other active filters', async () => {
+  const { records, requests } = setup()
+  const initial = records.applyQuery({ realname: '张三', status: 'pending', date: '2026-01-02' })
+  await settle()
+  requests[0].respond([1])
+  await initial
+
+  const campus = records.applyQuery({ roomID: 5 })
+  await settle()
+
+  const url = new URL(requests[1].url, 'http://localhost')
+  assert.equal(url.searchParams.get('page'), '1')
+  assert.equal(url.searchParams.get('realname'), '张三')
+  assert.equal(url.searchParams.get('status'), 'pending')
+  assert.equal(url.searchParams.get('from_date'), '2026-01-02')
+  assert.equal(url.searchParams.get('to_date'), '2026-01-02')
+  assert.equal(url.searchParams.get('room_id'), '5')
+
+  requests[1].respond([2])
+  await campus
+  assert.equal(records.state.page, 2)
+})

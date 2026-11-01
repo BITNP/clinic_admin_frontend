@@ -31,18 +31,14 @@
 
 <script setup lang="ts">
 import { records, rooms } from "@/store";
-import type API from "@/store/api";
 import { RECORD_STATUS_DESC } from "@/utils/constants";
 import { computed, onMounted, ref, watch } from "vue"
 
-const campus = ref<string>("all")
-const campusList = ref<{
-  label: string,
-  value: string
-}[]>([{
-  label: "全部",
-  value: "all"
-}])
+const campus = ref<string | number>("all")
+const campusList = computed(() => [
+  { label: "全部", value: "all" },
+  ...rooms.state.list.map((room) => ({ label: room.name, value: room.id }))
+])
 
 const status = ref<string>("all")
 const statusList: { label: string, value: string }[] = [
@@ -53,21 +49,54 @@ const statusList: { label: string, value: string }[] = [
 const selectedDate = ref<number | null>(null)
 const realname = ref<string>('')
 
+const formatDate = (value: number) => {
+  const date = new Date(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Parse YYYY-MM-DD as a local date so the picker does not shift the day in
+// timezones behind UTC.
+const parseDate = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day).getTime()
+}
+
 // isToday mirrors the picker: the button is active (and the filter applies)
 // only while the selected date is today's date.
 const isToday = computed(() => {
   if (selectedDate.value === null) return false
-  return new Date(selectedDate.value).toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')
+  return formatDate(selectedDate.value) === formatDate(Date.now())
 })
 
-watch(selectedDate, () => {
-  records.state.filters = generateFilters()
-})
+// Ignore filter changes made while the panel is initializing itself from the
+// store; otherwise opening the sidebar would refetch the current query.
+const ready = ref(false)
 
-// Mirror the date picker: changing the status select applies the filter
-// immediately, without needing the 确认 button.
-watch(status, () => {
-  records.state.filters = generateFilters()
+const applyFilters = async () => {
+  if (!ready.value) return
+  await records.applyQuery({
+    realname: realname.value,
+    status: status.value === "all" ? "" : status.value,
+    roomID: campus.value === "all" ? null : Number(campus.value),
+    date: selectedDate.value === null ? "" : formatDate(selectedDate.value)
+  })
+}
+
+// Mirror the date picker and status select: both apply immediately, without
+// needing the 确认 button.
+watch(selectedDate, applyFilters)
+watch(status, applyFilters)
+
+// Keep the panel in sync when another component (such as the campus badge on a
+// record) changes the active query.
+watch(() => ({ ...records.state.filters, realname: records.state.realname }), (filters) => {
+  campus.value = filters.roomID ?? "all"
+  status.value = filters.status || "all"
+  realname.value = filters.realname
+  selectedDate.value = filters.date ? parseDate(filters.date) : null
 })
 
 // Clicking toggles today's date: fill the picker, or clear it to cancel.
@@ -88,93 +117,18 @@ const togglePending = () => {
 }
 
 onMounted(() => {
-  campus.value = records.state.filters["campus"] ? records.state.filters["campus"][0].value : "all"
-  status.value = records.state.filters["status"] ? records.state.filters["status"][0].value : "all"
+  campus.value = records.state.filters.roomID ?? "all"
+  status.value = records.state.filters.status || "all"
   realname.value = records.state.realname
-
-  const dateFilter = records.state.filters["date"]
-  if (dateFilter && dateFilter.length > 0) {
-    if (dateFilter[0].value === "today") {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      selectedDate.value = today.getTime()
-    } else {
-      selectedDate.value = new Date(dateFilter[0].value).getTime()
-    }
-  }
-
-  rooms.state.list.forEach((campus) => campusList.value.push({
-    label: campus.name,
-    value: campus.name
-  }))
+  selectedDate.value = records.state.filters.date ? parseDate(records.state.filters.date) : null
+  ready.value = true
 })
-
-watch(() => records.state.filters, (filters) => {
-  if (Object.keys(filters).length === 0) {
-    campus.value = "all"
-    status.value = "all"
-    selectedDate.value = null
-  }
-}, { deep: true })
-
-const applyFilters = async () => {
-  records.state.filters = generateFilters()
-  await records.search(realname.value)
-}
 
 const resetFilters = async () => {
   realname.value = ''
-  records.state.filters = {}
-  await records.search('')
-}
-
-const generateFilters = () => {
-  let filters = {} as typeof records.state.filters
-
-  if (!filters["campus"]) filters["campus"] = []
-  if (campus.value !== "all") {
-    filters["campus"].push({
-      value: campus.value,
-      filter: (ele) => ele.campus === campus.value
-    })
-  }
-  else {
-    filters["campus"].push({
-      value: campus.value,
-      filter: () => true
-    })
-  }
-
-  if (!filters["status"]) filters["status"] = []
-  if (status.value !== "all") {
-    filters["status"].push({
-      value: status.value,
-      filter: (ele) => ele.status === status.value
-    })
-  }
-  else {
-    filters["status"].push({
-      value: status.value,
-      filter: () => true
-    })
-  }
-
-  if (isToday.value) {
-    let now = new Date().toLocaleDateString('en-CA')
-    if (!filters["date"]) filters["date"] = []
-    filters["date"].push({
-      value: "today",
-      filter: (ele: any) => ele.appointment_time === now
-    })
-  } else if (selectedDate.value) {
-    let dateStr = new Date(selectedDate.value).toLocaleDateString('en-CA')
-    if (!filters["date"]) filters["date"] = []
-    filters["date"].push({
-      value: dateStr,
-      filter: (ele: any) => ele.appointment_time === dateStr
-    })
-  }
-
-  return filters
+  campus.value = "all"
+  status.value = "all"
+  selectedDate.value = null
+  await applyFilters()
 }
 </script>

@@ -10,17 +10,25 @@ interface ListResponse<T> {
   pageSize: number
 }
 
-// Records (repair tickets) list, plus the client-side filters that drive the sidebar.
+type RecordFilters = {
+  status: string
+  roomID: number | null
+  date: string
+}
+
+type RecordQuery = Partial<RecordFilters & { realname: string }>
+
+// Records (repair tickets) list, plus the server-side filters that drive the sidebar.
 const state = reactive({
   items: {} as {
     [k: API.Record['id']]: API.Record
   },
-  filters: {} as {
-    [key: string]: {
-      value: string
-      filter: (record: API.Record) => boolean
-    }[]
-  },
+  // Active server-side filters. Empty strings and null mean "no filter".
+  filters: {
+    status: '',
+    roomID: null as number | null,
+    date: ''
+  } as RecordFilters,
   // Active server-side realname search term. Empty means no search filter.
   realname: '',
   // next page to fetch for "load more"
@@ -41,6 +49,16 @@ const fetchPageData = async (target: number) => {
   const params = new URLSearchParams({ page: String(target) })
   if (state.realname) {
     params.set('realname', state.realname)
+  }
+  if (state.filters.status) {
+    params.set('status', state.filters.status)
+  }
+  if (state.filters.roomID !== null) {
+    params.set('room_id', String(state.filters.roomID))
+  }
+  if (state.filters.date) {
+    params.set('from_date', state.filters.date)
+    params.set('to_date', state.filters.date)
   }
   return (await Api.get<ListResponse<API.Record>>(`/api/admin/records?${params.toString()}`)).data
 }
@@ -105,24 +123,40 @@ const ensureLoaded = async () => {
   await refresh()
 }
 
-// Switch the server-side realname search and reload the first page. The term
-// is applied inside the queued load so requests that are already in flight
-// keep the term they were created with.
-const search = async (realname: string) => {
-  const term = realname.trim()
+// Resolve a partial query against the active filters so callers such as the
+// campus badge can change one field without clearing the rest.
+const resolveQuery = (query: RecordQuery): Required<RecordQuery> => ({
+  realname: query.realname !== undefined ? query.realname.trim() : state.realname,
+  status: query.status !== undefined ? query.status : state.filters.status,
+  roomID: query.roomID !== undefined ? query.roomID : state.filters.roomID,
+  date: query.date !== undefined ? query.date : state.filters.date
+})
+
+const queryKey = (query: Required<RecordQuery>) => JSON.stringify(query)
+
+// Apply server-side filters and reload the first page. The query is resolved
+// inside the queued load so requests already in flight keep the filters they
+// were created with, and submitting the same query again is a no-op.
+const applyQuery = async (query: RecordQuery = {}) => {
   await queueListLoad(async () => {
     await Auth.ready()
-    if (term === state.realname) return
+    const next = resolveQuery(query)
+    if (queryKey(next) === queryKey(resolveQuery({}))) return
 
-    state.realname = term
+    state.realname = next.realname
+    state.filters.status = next.status
+    state.filters.roomID = next.roomID
+    state.filters.date = next.date
+
     const response = await fetchPageData(1)
-    const next: typeof state.items = {}
+    const items: typeof state.items = {}
     response.items.forEach((record) => {
-      next[record.id] = record
+      items[record.id] = record
     })
-    state.items = next
+    state.items = items
     state.loadedPages = 1
     state.page = 2
+    state.revision += 1
   })
 }
 
@@ -239,24 +273,9 @@ const photoSrc = (recordId: number, photo: API.RecordPhoto) => {
   return version ? `${photo.url}?v=${version}` : photo.url
 }
 
-const filterRecord = (record: API.Record, filters: typeof state.filters) => {
-  let result = true
-  for (const key in filters) {
-    const filterList = filters[key]
-    const res = filterList.reduce<boolean>((pre, f) => f.filter(record) || pre, false)
-    result &&= res
-  }
-  return result
-}
-
-const visibility = computed(
-  () =>
-    Object.keys(state.items)
-      .map((key) => {
-        return filterRecord(state.items[parseInt(key)], state.filters) ? parseInt(key) : null
-      })
-      .filter((value) => value !== null) as number[]
-)
+// The server has already applied the active filters, so every loaded record is
+// visible. Keep this list for the sidebar and the prev/next record navigation.
+const visibility = computed(() => Object.keys(state.items).map((key) => parseInt(key)))
 
 const prevRecord = (id: number) => {
   const index = visibility.value.indexOf(id)
@@ -293,7 +312,7 @@ export default reactive({
   isNextRecordExist,
   loadMore,
   refresh,
-  search,
+  applyQuery,
   ensureLoaded,
   isLoaded,
   updateWorkerDesc,

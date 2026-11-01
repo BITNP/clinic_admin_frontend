@@ -26,7 +26,7 @@ import type API from '@/store/api';
 import { computed } from 'vue';
 import type { PropType } from 'vue';
 import StatusBadge from "@/components/StatusBadge.vue"
-import { records } from '@/store';
+import { records, rooms } from '@/store';
 import { RECORD_TAG_DESC } from '@/utils/constants';
 
 import AccessTimeFilledFilled from "@vicons/material/AccessTimeFilledFilled"
@@ -75,14 +75,10 @@ const StatusAvatar = () => {
   return <AccessTimeOutline />
 }
 
-const filterCampus = () => {
-  const filters = records.state.filters
-
-  filters['campus'] = [{
-    value: props.data?.campus!,
-    filter: (ele) => ele.campus === props.data?.campus
-  }]
-  // eslint-disable-next-line no-self-assign
-  records.state.filters = filters
+const filterCampus = async () => {
+  if (!rooms.isLoaded()) await rooms.ensureLoaded()
+  const room = rooms.state.list.find((item) => item.name === props.data?.campus)
+  if (!room) return
+  await records.applyQuery({ roomID: room.id })
 }
 </script>

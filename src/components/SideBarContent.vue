@@ -1,21 +1,20 @@
 <template>
   <div ref="listDOM" style="margin-top: 64px; overflow: auto; height: calc(100vh - 64px)" @scroll="handleScroll">
-    <n-list hoverable clickable v-if="recordCount > 0">
-      <div v-if="canFilter" style="padding: 8px 20px 0">
-        <div role="none" style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; cursor: pointer; user-select: none;" @click="filterExpanded = !filterExpanded">
-          <n-icon :style="{ transition: 'transform 0.2s', transform: filterExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }">
-            <ArrowDropDownFilled />
-          </n-icon>
-          <span>筛选</span>
-        </div>
-        <div class="filter-collapse" :class="{ expanded: filterExpanded }">
-          <div>
-            <FilterPanel />
-          </div>
+    <div v-if="canFilter" style="padding: 8px 20px 0">
+      <div role="none" style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; cursor: pointer; user-select: none;" @click="filterExpanded = !filterExpanded">
+        <n-icon :style="{ transition: 'transform 0.2s', transform: filterExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }">
+          <ArrowDropDownFilled />
+        </n-icon>
+        <span>筛选</span>
+      </div>
+      <div class="filter-collapse" :class="{ expanded: filterExpanded }">
+        <div>
+          <FilterPanel />
         </div>
       </div>
-      <n-list-item v-for="record in recordList" :key="record.id" @click="showRecord(record)"
-        v-show="records.visibility.includes(record.id)">
+    </div>
+    <n-list hoverable clickable v-if="recordCount > 0">
+      <n-list-item v-for="record in recordList" :key="record.id" @click="showRecord(record)">
         <RecordItem :data="record" />
       </n-list-item>
       <div style="padding: 12px 20px;">
@@ -24,7 +23,7 @@
         </n-button>
       </div>
     </n-list>
-    <n-element v-else style="height: 100%; width: 100%; display: flex; justify-content: center; align-items: center;">
+    <n-element v-else style="width: 100%; padding: 48px 0; display: flex; justify-content: center; align-items: center;">
       <n-spin v-if="records.state.loading" />
       <n-text v-else depth="3">暂时没有任务</n-text>
     </n-element>
@@ -84,7 +83,6 @@ watch(isPopup, () => {
 const canFilter = computed(() =>
   Auth.user.value?.role === 'admin' || Auth.user.value?.role === 'staff'
 )
-const filterCount = computed(() => Object.keys(records.state.filters).length)
 const recordCount = computed(() => Object.keys(records.state.items).length)
 const recordList = computed(() => Object.keys(records.state.items).reverse().map((key) => records.state.items[parseInt(key)]))
 </script>
