@@ -42,7 +42,7 @@
                 </template>
               </n-button>
             </template>
-            <span>编辑时间</span>
+            <span>时间管理</span>
           </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
@@ -68,7 +68,7 @@
                 </template>
               </n-button>
             </template>
-            <span>编辑公告</span>
+            <span>公告管理</span>
           </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
@@ -193,7 +193,7 @@ const menu = computed(() => [
       }]
     : []),
   {
-    title: "编辑时间",
+    title: "时间管理",
     key: "schedule",
     icon: renderIcon(EditCalendarFilled),
     onClick: () => router.push("/schedule")
@@ -205,7 +205,7 @@ const menu = computed(() => [
     onClick: () => router.push("/staff")
   },
   {
-    title: "编辑公告",
+    title: "公告管理",
     key: "announcement",
     icon: renderIcon(EditNotificationsFilled),
     onClick: () => router.push("/announcement")
