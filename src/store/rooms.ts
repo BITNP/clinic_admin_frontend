@@ -38,12 +38,20 @@ const refresh = async () => {
 
 const isLoaded = () => state.loaded
 
-const update = async (id: number, payload: Partial<Pick<API.Room, 'name' | 'address' | 'enabled'>>) => {
+type RoomUpdatePayload = Partial<Pick<API.Room, 'name' | 'address' | 'enabled' | 'campus_id' | 'type'>>
+
+type RoomCreatePayload = Pick<API.Room, 'name' | 'address'> & {
+  // Required by the backend; optional here until the create form exposes a campus picker.
+  campus_id?: number
+  type?: API.RoomType
+}
+
+const update = async (id: number, payload: RoomUpdatePayload) => {
   await Api.put<API.Room>(`/api/admin/rooms/${id}`, payload)
   await load()
 }
 
-const create = async (payload: Pick<API.Room, 'name' | 'address'>) => {
+const create = async (payload: RoomCreatePayload) => {
   await Api.post<API.Room>('/api/admin/rooms', payload)
   await load()
 }

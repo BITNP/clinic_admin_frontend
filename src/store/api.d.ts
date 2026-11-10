@@ -2,12 +2,23 @@ namespace API {
   type DateString = string
   type TimeString = string
 
+  // /api/admin/campuses
+  type Campus = {
+    id: number
+    name: string
+  }
+
+  type RoomType = 'normal' | 'dynamic' | 'auto_select'
+
   // /api/admin/rooms
   type Room = {
     id: number
     name: string
     address: string
     enabled: boolean
+    campus_id: number
+    campus: Campus
+    type: RoomType
   }
 
   // /api/admin/service-dates
