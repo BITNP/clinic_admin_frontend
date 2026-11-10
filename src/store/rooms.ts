@@ -45,9 +45,7 @@ const isLoaded = () => state.loaded
 
 type RoomUpdatePayload = Partial<Pick<API.Room, 'name' | 'address' | 'enabled' | 'campus_id' | 'type'>>
 
-type RoomCreatePayload = Pick<API.Room, 'name' | 'address'> & {
-  // Required by the backend; optional here until the create form exposes a campus picker.
-  campus_id?: number
+type RoomCreatePayload = Pick<API.Room, 'name' | 'address' | 'campus_id'> & {
   type?: API.RoomType
 }
 

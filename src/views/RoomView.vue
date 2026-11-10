@@ -21,7 +21,7 @@
 
       <n-space justify="space-between" :align="'center'">
         <n-text strong>场地</n-text>
-        <n-button type="primary" @click="showCreateModal = true">新建场地</n-button>
+        <n-button type="primary" @click="openCreateModal">新建场地</n-button>
       </n-space>
       <n-data-table
         :columns="columns"
@@ -39,6 +39,9 @@
     <n-modal v-model:show="showEditModal" title="编辑场地" preset="card" style="max-width: 480px;"
       @after-leave="resetEditForm">
       <n-form :model="editForm" ref="editFormRef" :rules="roomRules">
+        <n-form-item label="校区" path="campus_id">
+          <n-select v-model:value="editForm.campus_id" :options="rooms.campusOptions" placeholder="请选择校区" />
+        </n-form-item>
         <n-form-item label="名称" path="name">
           <n-input v-model:value="editForm.name" placeholder="例如: 中关村医务室" />
         </n-form-item>
@@ -57,6 +60,9 @@
     <n-modal v-model:show="showCreateModal" title="新建场地" preset="card" style="max-width: 480px;"
       @after-leave="resetCreateForm">
       <n-form :model="createForm" ref="createFormRef" :rules="roomRules">
+        <n-form-item label="校区" path="campus_id">
+          <n-select v-model:value="createForm.campus_id" :options="rooms.campusOptions" placeholder="请选择校区" />
+        </n-form-item>
         <n-form-item label="名称" path="name">
           <n-input v-model:value="createForm.name" placeholder="例如: 中关村医务室" />
         </n-form-item>
@@ -127,6 +133,7 @@ const editLoading = ref(false)
 const editingId = ref<number | null>(null)
 const savingId = ref<number | null>(null)
 const editForm = reactive({
+  campus_id: null as number | null,
   name: '',
   address: '',
 })
@@ -135,6 +142,7 @@ const editFormRef = ref<FormInst | null>(null)
 const showCreateModal = ref(false)
 const createLoading = ref(false)
 const createForm = reactive({
+  campus_id: null as number | null,
   name: '',
   address: '',
 })
@@ -156,6 +164,12 @@ const campusCreateForm = reactive({
 const campusCreateFormRef = ref<FormInst | null>(null)
 
 const roomRules: FormRules = {
+  campus_id: {
+    required: true,
+    type: 'number',
+    message: '请选择校区',
+    trigger: ['blur', 'change'],
+  },
   name: {
     required: true,
     message: '请输入场地名称',
@@ -194,6 +208,12 @@ const campusErrorText = (e: any, fallback: string) => {
 }
 
 const columns: DataTableColumn<RoomRow>[] = [
+  {
+    title: '校区',
+    key: 'campus',
+    minWidth: 180,
+    render: (row) => row.campus?.name ?? '-',
+  },
   {
     title: '名称',
     key: 'name',
@@ -298,6 +318,7 @@ const campusColumns: DataTableColumn<API.Campus>[] = [
 
 const openEdit = (room: API.Room) => {
   editingId.value = room.id
+  editForm.campus_id = room.campus_id
   editForm.name = room.name
   editForm.address = room.address
   editFormRef.value?.restoreValidation()
@@ -306,12 +327,12 @@ const openEdit = (room: API.Room) => {
 
 const resetEditForm = () => {
   editingId.value = null
-  Object.assign(editForm, { name: '', address: '' })
+  Object.assign(editForm, { campus_id: null, name: '', address: '' })
   editFormRef.value?.restoreValidation()
 }
 
 const handleEditSubmit = async () => {
-  if (editingId.value === null) return
+  if (editingId.value === null || editForm.campus_id === null) return
   try {
     await editFormRef.value?.validate()
   } catch {
@@ -320,6 +341,7 @@ const handleEditSubmit = async () => {
   editLoading.value = true
   try {
     await rooms.update(editingId.value, {
+      campus_id: editForm.campus_id,
       name: editForm.name,
       address: editForm.address,
     })
@@ -332,12 +354,26 @@ const handleEditSubmit = async () => {
   }
 }
 
+const openCreateModal = () => {
+  if (rooms.state.campuses.length === 0) {
+    message.error('请先创建校区')
+    return
+  }
+  createForm.campus_id = rooms.state.campuses[0].id
+  showCreateModal.value = true
+}
+
 const resetCreateForm = () => {
-  Object.assign(createForm, { name: '', address: '' })
+  Object.assign(createForm, {
+    campus_id: rooms.state.campuses[0]?.id ?? null,
+    name: '',
+    address: '',
+  })
   createFormRef.value?.restoreValidation()
 }
 
 const handleCreate = async () => {
+  if (createForm.campus_id === null) return
   try {
     await createFormRef.value?.validate()
   } catch {
@@ -345,7 +381,11 @@ const handleCreate = async () => {
   }
   createLoading.value = true
   try {
-    await rooms.create({ name: createForm.name, address: createForm.address })
+    await rooms.create({
+      campus_id: createForm.campus_id,
+      name: createForm.name,
+      address: createForm.address,
+    })
     message.success('场地已创建')
     showCreateModal.value = false
   } catch (e: any) {
