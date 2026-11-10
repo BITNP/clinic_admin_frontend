@@ -1,7 +1,26 @@
 <template>
   <PageWrapper title="场地管理">
     <n-space vertical :size="16">
-      <n-space :align="'center'">
+      <n-space justify="space-between" :align="'center'">
+        <n-text strong>校区</n-text>
+        <n-button type="primary" @click="showCampusCreateModal = true">新建校区</n-button>
+      </n-space>
+      <n-data-table
+        :columns="campusColumns"
+        :data="rooms.state.campuses"
+        :bordered="false"
+        :single-line="false"
+        :loading="rooms.state.loading"
+      >
+        <template #empty>
+          <n-empty description="暂无校区，请先新建校区" />
+        </template>
+      </n-data-table>
+
+      <n-divider />
+
+      <n-space justify="space-between" :align="'center'">
+        <n-text strong>场地</n-text>
         <n-button type="primary" @click="showCreateModal = true">新建场地</n-button>
       </n-space>
       <n-data-table
@@ -12,7 +31,7 @@
         :loading="rooms.state.loading"
       >
         <template #empty>
-          <n-empty description="暂无场地" />
+          <n-empty description="暂无场地，请先新建校区后再添加场地" />
         </template>
       </n-data-table>
     </n-space>
@@ -21,10 +40,10 @@
       @after-leave="resetEditForm">
       <n-form :model="editForm" ref="editFormRef" :rules="roomRules">
         <n-form-item label="名称" path="name">
-          <n-input v-model:value="editForm.name" placeholder="例如: 主楼 101" />
+          <n-input v-model:value="editForm.name" placeholder="例如: 中关村医务室" />
         </n-form-item>
         <n-form-item label="地址" path="address">
-          <n-input v-model:value="editForm.address" placeholder="请输入场地地址" />
+          <n-input v-model:value="editForm.address" placeholder="请输入场地的详细地址" />
         </n-form-item>
       </n-form>
       <template #footer>
@@ -39,16 +58,46 @@
       @after-leave="resetCreateForm">
       <n-form :model="createForm" ref="createFormRef" :rules="roomRules">
         <n-form-item label="名称" path="name">
-          <n-input v-model:value="createForm.name" placeholder="例如: 主楼 101" />
+          <n-input v-model:value="createForm.name" placeholder="例如: 中关村医务室" />
         </n-form-item>
         <n-form-item label="地址" path="address">
-          <n-input v-model:value="createForm.address" placeholder="请输入场地地址" />
+          <n-input v-model:value="createForm.address" placeholder="请输入场地的详细地址" />
         </n-form-item>
       </n-form>
       <template #footer>
         <n-space justify="end">
           <n-button @click="showCreateModal = false">取消</n-button>
           <n-button type="primary" :loading="createLoading" @click="handleCreate">创建</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="showCampusEditModal" title="编辑校区" preset="card" style="max-width: 480px;"
+      @after-leave="resetCampusEditForm">
+      <n-form :model="campusEditForm" ref="campusEditFormRef" :rules="campusRules">
+        <n-form-item label="名称" path="name">
+          <n-input v-model:value="campusEditForm.name" placeholder="例如: 中关村校区" :maxlength="64" show-count />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showCampusEditModal = false">取消</n-button>
+          <n-button type="primary" :loading="campusEditLoading" @click="handleCampusEditSubmit">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="showCampusCreateModal" title="新建校区" preset="card" style="max-width: 480px;"
+      @after-leave="resetCampusCreateForm">
+      <n-form :model="campusCreateForm" ref="campusCreateFormRef" :rules="campusRules">
+        <n-form-item label="名称" path="name">
+          <n-input v-model:value="campusCreateForm.name" placeholder="例如: 中关村校区" :maxlength="64" show-count />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showCampusCreateModal = false">取消</n-button>
+          <n-button type="primary" :loading="campusCreateLoading" @click="handleCampusCreate">创建</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -91,6 +140,21 @@ const createForm = reactive({
 })
 const createFormRef = ref<FormInst | null>(null)
 
+const showCampusEditModal = ref(false)
+const campusEditLoading = ref(false)
+const editingCampusId = ref<number | null>(null)
+const campusEditForm = reactive({
+  name: '',
+})
+const campusEditFormRef = ref<FormInst | null>(null)
+
+const showCampusCreateModal = ref(false)
+const campusCreateLoading = ref(false)
+const campusCreateForm = reactive({
+  name: '',
+})
+const campusCreateFormRef = ref<FormInst | null>(null)
+
 const roomRules: FormRules = {
   name: {
     required: true,
@@ -104,8 +168,28 @@ const roomRules: FormRules = {
   },
 }
 
+const campusRules: FormRules = {
+  name: [
+    {
+      required: true,
+      message: '请输入校区名称',
+      trigger: ['blur', 'input'],
+    },
+    {
+      max: 64,
+      message: '校区名称不能超过 64 个字符',
+      trigger: ['blur', 'input'],
+    },
+  ],
+}
+
 const errorText = (e: any, fallback: string) => {
   if (e?.response?.status === 409) return '场地名称已存在'
+  return e?.response?.data?.error || e?.message || fallback
+}
+
+const campusErrorText = (e: any, fallback: string) => {
+  if (e?.response?.status === 409) return '校区名称已存在'
   return e?.response?.data?.error || e?.message || fallback
 }
 
@@ -159,6 +243,48 @@ const columns: DataTableColumn<RoomRow>[] = [
               text: true,
               type: 'error',
               onClick: () => confirmRemove(row),
+            },
+            {
+              icon: () => h(NIcon, null, { default: () => h(DeleteFilled) }),
+              default: () => '删除',
+            },
+          ),
+        ],
+      }),
+  },
+]
+
+const campusColumns: DataTableColumn<API.Campus>[] = [
+  {
+    title: '名称',
+    key: 'name',
+    minWidth: 180,
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 180,
+    render: (row) =>
+      h(NSpace, { size: 12 }, {
+        default: () => [
+          h(
+            NButton,
+            {
+              text: true,
+              type: 'primary',
+              onClick: () => openCampusEdit(row),
+            },
+            {
+              icon: () => h(NIcon, null, { default: () => h(EditFilled) }),
+              default: () => '编辑',
+            },
+          ),
+          h(
+            NButton,
+            {
+              text: true,
+              type: 'error',
+              onClick: () => confirmCampusRemove(row),
             },
             {
               icon: () => h(NIcon, null, { default: () => h(DeleteFilled) }),
@@ -268,6 +394,85 @@ const handleToggleEnabled = async (room: API.Room, value: boolean) => {
   }
 }
 
+const openCampusEdit = (campus: API.Campus) => {
+  editingCampusId.value = campus.id
+  campusEditForm.name = campus.name
+  campusEditFormRef.value?.restoreValidation()
+  showCampusEditModal.value = true
+}
+
+const resetCampusEditForm = () => {
+  editingCampusId.value = null
+  Object.assign(campusEditForm, { name: '' })
+  campusEditFormRef.value?.restoreValidation()
+}
+
+const handleCampusEditSubmit = async () => {
+  if (editingCampusId.value === null) return
+  try {
+    await campusEditFormRef.value?.validate()
+  } catch {
+    return
+  }
+  campusEditLoading.value = true
+  try {
+    await rooms.updateCampus(editingCampusId.value, {
+      name: campusEditForm.name,
+    })
+    message.success('校区已更新')
+    showCampusEditModal.value = false
+  } catch (e: any) {
+    message.error(campusErrorText(e, '更新失败'))
+  } finally {
+    campusEditLoading.value = false
+  }
+}
+
+const resetCampusCreateForm = () => {
+  Object.assign(campusCreateForm, { name: '' })
+  campusCreateFormRef.value?.restoreValidation()
+}
+
+const handleCampusCreate = async () => {
+  try {
+    await campusCreateFormRef.value?.validate()
+  } catch {
+    return
+  }
+  campusCreateLoading.value = true
+  try {
+    await rooms.createCampus({ name: campusCreateForm.name })
+    message.success('校区已创建')
+    showCampusCreateModal.value = false
+  } catch (e: any) {
+    message.error(campusErrorText(e, '创建失败'))
+  } finally {
+    campusCreateLoading.value = false
+  }
+}
+
+const confirmCampusRemove = (campus: API.Campus) => {
+  dialog.warning({
+    title: '确认删除',
+    content: `确定要删除校区「${campus.name}」吗？此操作不可恢复。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await rooms.removeCampus(campus.id)
+        message.success('已删除')
+      } catch (e: any) {
+        if (e?.response?.status === 409) {
+          message.error('该校区下仍有场地，无法删除')
+        } else {
+          message.error(e?.response?.data?.error || e?.message || '删除失败')
+        }
+        await rooms.refresh()
+      }
+    },
+  })
+}
+
 onMounted(async () => {
   await Auth.ready()
   // Auth.ready() resolves once login succeeds; the user object may lag behind.
@@ -283,7 +488,7 @@ onMounted(async () => {
     await rooms.refresh()
   } catch (e) {
     console.error('Failed to load room list', e)
-    message.error('加载场地列表失败')
+    message.error('加载校区和场地列表失败')
   }
 })
 </script>

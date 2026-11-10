@@ -13,6 +13,7 @@ interface ListResponse<T> {
 // schedule and work-schedule, so it lives on its own and can be refreshed alone.
 const state = reactive({
   list: [] as API.Room[],
+  campuses: [] as API.Campus[],
   loaded: false,
   loading: false,
 })
@@ -20,8 +21,12 @@ const state = reactive({
 const load = async () => {
   state.loading = true
   try {
-    const res = await Api.get<ListResponse<API.Room>>('/api/admin/rooms?pageSize=1000')
-    state.list = res.data.items
+    const [roomRes, campusRes] = await Promise.all([
+      Api.get<ListResponse<API.Room>>('/api/admin/rooms?pageSize=1000'),
+      Api.get<ListResponse<API.Campus>>('/api/admin/campuses?pageSize=1000'),
+    ])
+    state.list = roomRes.data.items
+    state.campuses = campusRes.data.items
     state.loaded = true
   } finally {
     state.loading = false
@@ -61,11 +66,31 @@ const remove = async (id: number) => {
   await load()
 }
 
+const createCampus = async (payload: Pick<API.Campus, 'name'>) => {
+  await Api.post<API.Campus>('/api/admin/campuses', payload)
+  await load()
+}
+
+const updateCampus = async (id: number, payload: Partial<Pick<API.Campus, 'name'>>) => {
+  await Api.put<API.Campus>(`/api/admin/campuses/${id}`, payload)
+  await load()
+}
+
+const removeCampus = async (id: number) => {
+  await Api.delete(`/api/admin/campuses/${id}`)
+  await load()
+}
+
 const options = computed(() => state.list.map((room) => ({ label: room.name, value: room.id })))
+
+const campusOptions = computed(() =>
+  state.campuses.map((campus) => ({ label: campus.name, value: campus.id }))
+)
 
 export default reactive({
   state,
   options,
+  campusOptions,
   load,
   ensureLoaded,
   refresh,
@@ -73,4 +98,7 @@ export default reactive({
   update,
   create,
   remove,
+  createCampus,
+  updateCampus,
+  removeCampus,
 })
