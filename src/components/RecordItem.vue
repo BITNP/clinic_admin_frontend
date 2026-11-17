@@ -79,6 +79,6 @@ const filterCampus = async () => {
   if (!rooms.isLoaded()) await rooms.ensureLoaded()
   const room = rooms.state.list.find((item) => item.name === props.data?.campus)
   if (!room) return
-  await records.applyQuery({ roomID: room.id })
+  await records.applyQuery({ roomID: room.id, campusID: null })
 }
 </script>

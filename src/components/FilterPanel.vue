@@ -1,5 +1,5 @@
 <template>
-  <n-form-item label="校区">
+  <n-form-item label="地点">
     <n-select v-model:value="campus" :options="campusList" />
   </n-form-item>
   <n-form-item label="时间">
@@ -34,11 +34,20 @@ import { records, rooms } from "@/store";
 import { RECORD_STATUS_DESC } from "@/utils/constants";
 import { computed, onMounted, ref, watch } from "vue"
 
-const campus = ref<string | number>("all")
+const campus = ref<string>("all")
 const campusList = computed(() => [
-  { label: "全部", value: "all" },
-  ...rooms.state.list.map((room) => ({ label: room.name, value: room.id }))
+  { label: "全部地点", value: "all" },
+  ...rooms.state.campuses.flatMap((item) => [
+    { label: `${item.name} · 全部场地`, value: `campus:${item.id}` },
+    ...rooms.state.list.filter((room) => room.campus_id === item.id)
+      .map((room) => ({ label: `　${room.name}`, value: `room:${room.id}` }))
+  ]),
+  ...rooms.state.list.filter((room) => !rooms.state.campuses.some((item) => item.id === room.campus_id))
+    .map((room) => ({ label: room.name, value: `room:${room.id}` }))
 ])
+
+const locationValue = (campusID: number | null, roomID: number | null) =>
+  roomID !== null ? `room:${roomID}` : campusID !== null ? `campus:${campusID}` : "all"
 
 const status = ref<string>("all")
 const statusList: { label: string, value: string }[] = [
@@ -80,7 +89,8 @@ const applyFilters = async () => {
   await records.applyQuery({
     realname: realname.value,
     status: status.value === "all" ? "" : status.value,
-    roomID: campus.value === "all" ? null : Number(campus.value),
+    roomID: campus.value.startsWith("room:") ? Number(campus.value.slice(5)) : null,
+    campusID: campus.value.startsWith("campus:") ? Number(campus.value.slice(7)) : null,
     date: selectedDate.value === null ? "" : formatDate(selectedDate.value)
   })
 }
@@ -93,7 +103,7 @@ watch(status, applyFilters)
 // Keep the panel in sync when another component (such as the campus badge on a
 // record) changes the active query.
 watch(() => ({ ...records.state.filters, realname: records.state.realname }), (filters) => {
-  campus.value = filters.roomID ?? "all"
+  campus.value = locationValue(filters.campusID, filters.roomID)
   status.value = filters.status || "all"
   realname.value = filters.realname
   selectedDate.value = filters.date ? parseDate(filters.date) : null
@@ -117,7 +127,7 @@ const togglePending = () => {
 }
 
 onMounted(() => {
-  campus.value = records.state.filters.roomID ?? "all"
+  campus.value = locationValue(records.state.filters.campusID, records.state.filters.roomID)
   status.value = records.state.filters.status || "all"
   realname.value = records.state.realname
   selectedDate.value = records.state.filters.date ? parseDate(records.state.filters.date) : null

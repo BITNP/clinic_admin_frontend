@@ -13,6 +13,7 @@ interface ListResponse<T> {
 type RecordFilters = {
   status: string
   roomID: number | null
+  campusID: number | null
   date: string
 }
 
@@ -27,6 +28,7 @@ const state = reactive({
   filters: {
     status: '',
     roomID: null as number | null,
+    campusID: null as number | null,
     date: ''
   } as RecordFilters,
   // Active server-side realname search term. Empty means no search filter.
@@ -55,6 +57,9 @@ const fetchPageData = async (target: number) => {
   }
   if (state.filters.roomID !== null) {
     params.set('room_id', String(state.filters.roomID))
+  }
+  if (state.filters.campusID !== null) {
+    params.set('campus_id', String(state.filters.campusID))
   }
   if (state.filters.date) {
     params.set('from_date', state.filters.date)
@@ -129,6 +134,7 @@ const resolveQuery = (query: RecordQuery): Required<RecordQuery> => ({
   realname: query.realname !== undefined ? query.realname.trim() : state.realname,
   status: query.status !== undefined ? query.status : state.filters.status,
   roomID: query.roomID !== undefined ? query.roomID : state.filters.roomID,
+  campusID: query.campusID !== undefined ? query.campusID : state.filters.campusID,
   date: query.date !== undefined ? query.date : state.filters.date
 })
 
@@ -146,6 +152,7 @@ const applyQuery = async (query: RecordQuery = {}) => {
     state.realname = next.realname
     state.filters.status = next.status
     state.filters.roomID = next.roomID
+    state.filters.campusID = next.campusID
     state.filters.date = next.date
 
     const response = await fetchPageData(1)
