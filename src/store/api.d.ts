@@ -8,7 +8,7 @@ namespace API {
     name: string
   }
 
-  type RoomType = 'normal' | 'dynamic' | 'auto_select'
+  type RoomType = 'normal' | 'dynamic'
 
   // /api/admin/rooms
   type Room = {
