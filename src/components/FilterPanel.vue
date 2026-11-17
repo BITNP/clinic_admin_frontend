@@ -1,6 +1,6 @@
 <template>
   <n-form-item label="地点">
-    <n-select v-model:value="campus" :options="campusList" />
+    <n-select v-model:value="campus" :options="campusList" @update:value="applyFilters" />
   </n-form-item>
   <n-form-item label="时间">
     <div style="display: flex; gap: 8px; width: 100%;">
