@@ -37,6 +37,7 @@ import { useRouter } from "vue-router"
 import type API from "@/store/api";
 import { records, ui } from "@/store"
 import { lt800px as isShrink, lt600px as isPopup } from "@/utils/Responsive"
+import { isStaffRole } from "@/utils/Roles"
 import ArrowDropDownFilled from "@vicons/material/ArrowDropDownFilled"
 
 import RecordItem from "@/components/RecordItem.vue"
@@ -80,9 +81,7 @@ watch(isPopup, () => {
   filterExpanded.value = !isPopup.value
 })
 // The record filter panel is available to both admins and staff.
-const canFilter = computed(() =>
-  Auth.user.value?.role === 'admin' || Auth.user.value?.role === 'staff'
-)
+const canFilter = computed(() => isStaffRole(Auth.user.value?.role))
 const recordCount = computed(() => Object.keys(records.state.items).length)
 const recordList = computed(() => Object.keys(records.state.items).reverse().map((key) => records.state.items[parseInt(key)]))
 </script>

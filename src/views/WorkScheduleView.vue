@@ -313,6 +313,7 @@ import { useMessage, useDialog, lightTheme } from 'naive-ui'
 import type { FormInst } from 'naive-ui'
 import EditFilled from "@vicons/material/EditFilled"
 import { toPng } from 'html-to-image'
+import { isAdminRole } from '@/utils/Roles'
 
 interface CellEntry {
   staffId: number
@@ -465,7 +466,7 @@ const roomsWithData = computed<RoomData[]>(() => {
         columns[dayIdx].push({
           staffId: s.staff_id,
           staffName: s.staff.realname || s.staff.account_id,
-          isAdmin: s.staff.role === 'admin',
+          isAdmin: isAdminRole(s.staff.role),
         })
       }
     }

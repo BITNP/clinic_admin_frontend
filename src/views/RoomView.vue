@@ -115,6 +115,7 @@ import PageWrapper from '@/components/PageWrapper.vue'
 import { rooms } from '@/store'
 import type API from '@/store/api'
 import Auth from '@/utils/Auth'
+import { isAdminRole } from '@/utils/Roles'
 import { ref, reactive, onMounted, h } from 'vue'
 import { NButton, NIcon, NSpace, NSwitch, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumn, FormInst, FormRules } from 'naive-ui'
@@ -519,7 +520,7 @@ onMounted(async () => {
   while (!Auth.user.value) {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  if (Auth.user.value.role !== 'admin') {
+  if (!isAdminRole(Auth.user.value.role)) {
     message.error('无权限访问场地管理')
     router.replace('/')
     return

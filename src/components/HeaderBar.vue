@@ -170,6 +170,7 @@ import CalendarMonthFilled from "@vicons/material/CalendarMonthFilled"
 import MeetingRoomFilled from "@vicons/material/MeetingRoomFilled"
 import MoreVertFilled from "@vicons/material/MoreVertFilled"
 import LogOutFilled from "@vicons/material/LogOutFilled"
+import { isAdminRole } from "@/utils/Roles"
 import { lt600px } from "@/utils/Responsive";
 import { h, computed, type Component } from "vue";
 import { NIcon, useMessage } from "naive-ui";
@@ -177,7 +178,7 @@ import { NIcon, useMessage } from "naive-ui";
 const router = useRouter()
 const message = useMessage()
 
-const isAdmin = computed(() => Auth.user.value?.role === 'admin')
+const isAdmin = computed(() => isAdminRole(Auth.user.value?.role))
 
 const renderIcon = (icon: Component) => {
   return () => h(NIcon, null, { default: () => h(icon) })
