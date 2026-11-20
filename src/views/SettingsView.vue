@@ -42,6 +42,7 @@
                       仅写入
                     </n-tag>
                   </n-space>
+                  <div v-if="settingHint(item)" class="setting-hint">{{ settingHint(item) }}</div>
                 </div>
 
                 <div class="setting-editor">
@@ -52,25 +53,32 @@
                     @update:value="draftFor(item).writeOnlyTouched = true"
                   />
 
-                  <n-input-number
+                  <div
                     v-else-if="item.value_type === 'int' || item.value_type === 'double'"
-                    v-model:value="draftFor(item).number"
-                    :precision="item.value_type === 'int' ? 0 : undefined"
-                    :show-button="false"
-                    :disabled="draftFor(item).saving"
-                    class="value-control"
-                    :placeholder="item.writeonly ? '请输入新值（当前值不可读取）' : '请输入数值'"
-                    @update:value="draftFor(item).writeOnlyTouched = true"
-                  />
+                    class="number-editor"
+                  >
+                    <n-input-number
+                      v-model:value="draftFor(item).number"
+                      :min="numberMin(item)"
+                      :precision="item.value_type === 'int' ? 0 : undefined"
+                      :show-button="false"
+                      :disabled="draftFor(item).saving"
+                      class="value-control"
+                      :placeholder="settingPlaceholder(item)"
+                      @update:value="draftFor(item).writeOnlyTouched = true"
+                    />
+                    <span v-if="numberUnit(item)" class="setting-unit">{{ numberUnit(item) }}</span>
+                  </div>
 
                   <n-input
                     v-else
                     v-model:value="draftFor(item).text"
-                    type="textarea"
-                    :autosize="{ minRows: 1, maxRows: 4 }"
+                    :type="stringInputType(item)"
+                    :autosize="isSingleLineSetting(item) ? undefined : { minRows: 1, maxRows: 4 }"
+                    :show-password-on="isWriteOnly(item) ? 'click' : undefined"
                     :disabled="draftFor(item).saving"
                     class="value-control"
-                    :placeholder="item.writeonly ? '请输入新值（当前值不可读取）' : '请输入配置值'"
+                    :placeholder="settingPlaceholder(item)"
                     @update:value="draftFor(item).writeOnlyTouched = true"
                   />
 
@@ -131,6 +139,90 @@ const valueTypeLabel = (type: API.ConfigValueType) => {
       return '开关'
     case 'string':
       return '文本'
+  }
+}
+
+const singleLineSettings = new Set([
+  'SYNC_POLL_INTERVAL',
+  'RECORD_ACTION_WINDOW',
+  'TAGGER_LLM_API_KEY',
+  'TAGGER_LLM_BASE_URL',
+  'TAGGER_LLM_MODEL',
+  'TAGGER_TIMEOUT',
+  'MESSAGE_GATEWAY_ACCOUNT'
+])
+
+const isWriteOnly = (item: API.ConfigItem) => item.writeonly
+
+const isSingleLineSetting = (item: API.ConfigItem) => singleLineSettings.has(item.name)
+
+const stringInputType = (item: API.ConfigItem) => {
+  if (isWriteOnly(item)) return 'password'
+  if (item.name === 'TAGGER_LLM_BASE_URL') return 'url'
+  return isSingleLineSetting(item) ? 'text' : 'textarea'
+}
+
+const settingPlaceholder = (item: API.ConfigItem) => {
+  if (item.writeonly) return '请输入新值（当前值不可读取）'
+  if (item.name === 'TAGGER_TIMEOUT') return '例如 30s'
+  if (item.value_type === 'int' || item.value_type === 'double') return '请输入数值'
+  return '请输入配置值'
+}
+
+const numberMin = (item: API.ConfigItem) => {
+  if (item.name === 'STAFF_VERSION') return 0
+  return item.value_type === 'int' ? 1 : undefined
+}
+
+const numberUnit = (item: API.ConfigItem) => {
+  switch (item.name) {
+    case 'RECORD_PHOTO_MAX_SIZE_BYTES':
+      return '字节'
+    case 'TAGGER_CONTEXT_TOKENS':
+      return 'tokens'
+    case 'TAGGER_AGENT_POOL_SIZE':
+      return '并发'
+    default:
+      return ''
+  }
+}
+
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  if (bytes >= 1024 * 1024) {
+    const mib = bytes / (1024 * 1024)
+    return `${Number.isInteger(mib) ? mib : mib.toFixed(1)} MiB`
+  }
+  if (bytes >= 1024) {
+    const kib = bytes / 1024
+    return `${Number.isInteger(kib) ? kib : kib.toFixed(1)} KiB`
+  }
+  return `${bytes} B`
+}
+
+const settingHint = (item: API.ConfigItem) => {
+  switch (item.name) {
+    case 'TAGGER_LLM_API_KEY':
+      return '仅写入；保存后不会回显当前密钥。'
+    case 'TAGGER_LLM_BASE_URL':
+      return 'OpenAI 兼容接口地址；填写密钥时必填。'
+    case 'TAGGER_LLM_MODEL':
+      return '模型 ID；填写密钥时必填。'
+    case 'TAGGER_AGENT_POOL_SIZE':
+      return '扩容立即生效；缩容会等待多余的在途任务结束。'
+    case 'TAGGER_CONTEXT_TOKENS':
+      return '会话达到该 token 数后重置上下文。'
+    case 'TAGGER_TIMEOUT':
+      return 'Go 时长格式，必须大于 0。'
+    case 'RECORD_PHOTO_MAX_SIZE_BYTES': {
+      const bytes = draftFor(item).number
+      const formatted = bytes === null ? '' : formatBytes(bytes)
+      return `${formatted ? `当前输入 ${formatted}；` : ''}保存后下一次上传立即使用该限制。`
+    }
+    case 'MESSAGE_GATEWAY_ACCOUNT':
+      return '下一条提醒立即使用该账号；网关 Token 必须与账号匹配。'
+    default:
+      return ''
   }
 }
 
@@ -280,6 +372,12 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
+.setting-hint {
+  color: var(--text-color-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .setting-editor {
   display: flex;
   align-items: flex-start;
@@ -290,6 +388,20 @@ onMounted(async () => {
 .value-control {
   flex: 1;
   min-width: 0;
+}
+
+.number-editor {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+.setting-unit {
+  color: var(--text-color-3);
+  font-size: 12px;
+  padding-top: 8px;
+  white-space: nowrap;
 }
 
 @media screen and (max-width: 800px) {
