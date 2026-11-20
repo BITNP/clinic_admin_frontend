@@ -21,10 +21,6 @@
             :title="section.group.display_name"
             embedded
           >
-            <template #header-extra>
-              <n-tag size="small" :bordered="false"> {{ section.items.length }} 项 </n-tag>
-            </template>
-
             <n-empty
               v-if="section.items.length === 0"
               description="该分组暂无配置项"
