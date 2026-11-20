@@ -3,8 +3,7 @@
     <n-space vertical :size="20">
       <n-alert type="info" :bordered="false"> 配置保存后需要重启后端服务才会生效。 </n-alert>
 
-      <n-space justify="space-between" align="center" wrap>
-        <n-text depth="3"> 这里只修改配置值，其他属性由系统维护。 </n-text>
+      <n-space justify="end" align="center" wrap>
         <n-button :loading="config.state.loading" @click="refresh"> 刷新 </n-button>
       </n-space>
 
