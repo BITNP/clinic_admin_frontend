@@ -14,7 +14,8 @@ const registry = {
   schedule,
   staff,
   announcements,
-  workSchedules
+  workSchedules,
+  config
 }
 
 export type StorePart = keyof typeof registry

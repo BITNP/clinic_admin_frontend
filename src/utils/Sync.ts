@@ -20,7 +20,8 @@ const GROUP_TO_PART: Record<string, StorePart> = {
   work_schedule: 'workSchedules',
   service_date: 'schedule',
   staff: 'staff',
-  announcement: 'announcements'
+  announcement: 'announcements',
+  config: 'config'
 }
 
 type Counters = Record<string, number>

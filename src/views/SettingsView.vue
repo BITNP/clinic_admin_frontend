@@ -96,7 +96,7 @@ import { config } from '@/store'
 import type API from '@/store/api'
 import Auth from '@/utils/Auth'
 import { isAdminRole } from '@/utils/Roles'
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
 
@@ -161,6 +161,22 @@ const serializeDraft = (item: API.ConfigItem, draft: Draft) => {
 }
 
 const isDirty = (item: API.ConfigItem) => serializeDraft(item, draftFor(item)) !== item.value
+
+// Adopt remote changes only for drafts that still match their previous value.
+watch(
+  () => config.state.items.slice(),
+  (items, previous) => {
+    const previousById = new Map(previous.map((item) => [item.id, item]))
+    for (const item of items) {
+      const oldItem = previousById.get(item.id)
+      const draft = drafts[item.id]
+      if (oldItem && draft && !draft.saving && serializeDraft(oldItem, draft) === oldItem.value) {
+        drafts[item.id] = toDraft(item)
+      }
+    }
+  },
+  { flush: 'sync' }
+)
 
 const errorText = (error: unknown) => {
   const response = (error as { response?: { status?: number; data?: { error?: string } } })
