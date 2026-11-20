@@ -42,6 +42,9 @@
                     <n-tag v-if="item.is_required" size="small" type="warning" :bordered="false">
                       必填
                     </n-tag>
+                    <n-tag v-if="item.writeonly" size="small" type="info" :bordered="false">
+                      仅写入
+                    </n-tag>
                   </n-space>
                 </div>
 
@@ -50,6 +53,7 @@
                     v-if="item.value_type === 'boolean'"
                     v-model:value="draftFor(item).boolean"
                     :disabled="draftFor(item).saving"
+                    @update:value="draftFor(item).writeOnlyTouched = true"
                   />
 
                   <n-input-number
@@ -59,7 +63,8 @@
                     :show-button="false"
                     :disabled="draftFor(item).saving"
                     class="value-control"
-                    placeholder="请输入数值"
+                    :placeholder="item.writeonly ? '请输入新值（当前值不可读取）' : '请输入数值'"
+                    @update:value="draftFor(item).writeOnlyTouched = true"
                   />
 
                   <n-input
@@ -69,7 +74,8 @@
                     :autosize="{ minRows: 1, maxRows: 4 }"
                     :disabled="draftFor(item).saving"
                     class="value-control"
-                    placeholder="请输入配置值"
+                    :placeholder="item.writeonly ? '请输入新值（当前值不可读取）' : '请输入配置值'"
+                    @update:value="draftFor(item).writeOnlyTouched = true"
                   />
 
                   <n-button
@@ -105,6 +111,7 @@ interface Draft {
   number: number | null
   boolean: boolean
   saving: boolean
+  writeOnlyTouched: boolean
 }
 
 const message = useMessage()
@@ -132,13 +139,15 @@ const valueTypeLabel = (type: API.ConfigValueType) => {
 }
 
 const toDraft = (item: API.ConfigItem): Draft => {
+  const value = item.value ?? ''
   const numeric = item.value_type === 'int' || item.value_type === 'double'
-  const parsed = numeric && item.value !== '' ? Number(item.value) : Number.NaN
+  const parsed = numeric && value !== '' ? Number(value) : Number.NaN
   return {
-    text: item.value,
+    text: value,
     number: Number.isFinite(parsed) ? parsed : null,
-    boolean: item.value === 'true',
-    saving: false
+    boolean: value === 'true',
+    saving: false,
+    writeOnlyTouched: false
   }
 }
 
@@ -160,7 +169,11 @@ const serializeDraft = (item: API.ConfigItem, draft: Draft) => {
   return draft.text
 }
 
-const isDirty = (item: API.ConfigItem) => serializeDraft(item, draftFor(item)) !== item.value
+const isDirty = (item: API.ConfigItem) => {
+  const draft = draftFor(item)
+  if (item.writeonly) return draft.writeOnlyTouched
+  return serializeDraft(item, draft) !== (item.value ?? '')
+}
 
 // Adopt remote changes only for drafts that still match their previous value.
 watch(
@@ -170,7 +183,11 @@ watch(
     for (const item of items) {
       const oldItem = previousById.get(item.id)
       const draft = drafts[item.id]
-      if (oldItem && draft && !draft.saving && serializeDraft(oldItem, draft) === oldItem.value) {
+      if (!oldItem || !draft) continue
+      const unchanged = oldItem.writeonly
+        ? !draft.writeOnlyTouched
+        : serializeDraft(oldItem, draft) === (oldItem.value ?? '')
+      if (!draft.saving && unchanged) {
         drafts[item.id] = toDraft(item)
       }
     }

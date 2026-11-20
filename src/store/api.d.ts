@@ -152,6 +152,7 @@ namespace API {
 
   // /api/admin/config
   type ConfigValueType = 'int' | 'double' | 'boolean' | 'string'
+  type ConfigRoleLevel = 'staff' | 'admin' | 'superadmin'
 
   type ConfigGroup = {
     id: number
@@ -163,10 +164,12 @@ namespace API {
   type ConfigItem = {
     id: number
     name: string
-    value: string
+    value?: string
     value_type: ConfigValueType
     display_name: string
     is_required: boolean
+    role_level: ConfigRoleLevel
+    writeonly: boolean
     group_id: number
     sort_order: number
   }
