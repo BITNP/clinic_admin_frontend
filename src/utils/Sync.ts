@@ -5,6 +5,7 @@ import { refreshLoaded, type StorePart } from '@/store'
 
 // Fallback poll interval in milliseconds, used until the backend config loads.
 const DEFAULT_SYNC_INTERVAL_MS = 10_000
+const CONFIG_REFRESH_INTERVAL_MS = 60_000
 
 // setTimeout stores its delay in a signed 32-bit integer.
 const MAX_TIMEOUT_MS = 2_147_483_647
@@ -82,6 +83,7 @@ class SyncBase {
   counters = ref<Counters>({})
 
   private timer: ReturnType<typeof setTimeout> | null = null
+  private configTimer: ReturnType<typeof setTimeout> | null = null
   private flushTimer: ReturnType<typeof setTimeout> | null = null
   private running = false
   private listening = false
@@ -111,10 +113,15 @@ class SyncBase {
       })
     ])
     this.schedule()
+    this.scheduleConfig()
   }
 
   stop() {
     this.running = false
+    if (this.configTimer !== null) {
+      clearTimeout(this.configTimer)
+      this.configTimer = null
+    }
     if (this.timer !== null) {
       clearTimeout(this.timer)
       this.timer = null
@@ -132,8 +139,26 @@ class SyncBase {
   }
 
   private schedule() {
-    if (!this.running || this.intervalMs <= 0) return
+    if (!this.running || this.intervalMs <= 0 || this.timer !== null || this.inFlight) return
     this.timer = setTimeout(() => this.tick(), this.intervalMs)
+  }
+
+  private scheduleConfig() {
+    if (!this.running || this.configTimer !== null) return
+    this.configTimer = setTimeout(async () => {
+      this.configTimer = null
+      if (!this.running) return
+      if (Auth.isLogin.value && !document.hidden) {
+        const previous = this.intervalMs
+        await this.fetchConfig()
+        if (this.running && previous !== this.intervalMs) {
+          if (this.timer !== null) clearTimeout(this.timer)
+          this.timer = null
+          this.schedule()
+        }
+      }
+      this.scheduleConfig()
+    }, CONFIG_REFRESH_INTERVAL_MS)
   }
 
   // fetchConfig asks the backend how often to poll. Any failure (older

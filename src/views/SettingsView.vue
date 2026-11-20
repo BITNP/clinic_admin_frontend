@@ -1,7 +1,7 @@
 <template>
   <PageWrapper title="系统设置">
     <n-space vertical :size="20">
-      <n-alert type="info" :bordered="false"> 配置保存后需要重启后端服务才会生效。 </n-alert>
+      <n-alert type="info" :bordered="false"> 内置配置保存后自动生效，客户端同步间隔可能需要一分钟更新。 </n-alert>
 
       <n-space justify="end" align="center" wrap>
         <n-button :loading="config.state.loading" @click="refresh"> 刷新 </n-button>
