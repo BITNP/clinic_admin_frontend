@@ -15,56 +15,61 @@ const router = createRouter({
     },
     {
       path: '/records/:recordId',
-      name: "records",
+      name: 'records',
       props: true,
-      component: () => import("@/views/RecordView.vue")
+      component: () => import('@/views/RecordView.vue')
     },
     {
       path: '/schedule',
-      name: "schedule",
-      component: () => import("@/views/ScheduleView.vue")
+      name: 'schedule',
+      component: () => import('@/views/ScheduleView.vue')
     },
     {
       path: '/schedule/add',
-      name: "scheduleAdd",
-      component: () => import("@/views/ScheduleAddView.vue")
+      name: 'scheduleAdd',
+      component: () => import('@/views/ScheduleAddView.vue')
     },
     {
       path: '/schedule/next-week',
-      name: "scheduleNextWeek",
-      component: () => import("@/views/ScheduleNextWeekView.vue")
+      name: 'scheduleNextWeek',
+      component: () => import('@/views/ScheduleNextWeekView.vue')
     },
     {
       path: '/schedule/:dateId',
-      name: "scheduleDate",
+      name: 'scheduleDate',
       props: true,
-      component: () => import("@/views/ScheduleEditView.vue")
+      component: () => import('@/views/ScheduleEditView.vue')
     },
     {
       path: '/announcement',
-      name: "Announcements",
-      component: () => import("@/views/AnnouncementView.vue")
+      name: 'Announcements',
+      component: () => import('@/views/AnnouncementView.vue')
     },
     {
       path: '/announcement/edit/:announcementId',
-      name: "AnnouncementEdit",
+      name: 'AnnouncementEdit',
       props: true,
-      component: () => import("@/views/AnnouncementEditView.vue")
+      component: () => import('@/views/AnnouncementEditView.vue')
     },
     {
       path: '/staff',
-      name: "staff",
-      component: () => import("@/views/StaffView.vue")
+      name: 'staff',
+      component: () => import('@/views/StaffView.vue')
     },
     {
       path: '/rooms',
-      name: "rooms",
-      component: () => import("@/views/RoomView.vue")
+      name: 'rooms',
+      component: () => import('@/views/RoomView.vue')
     },
     {
       path: '/work-schedule',
-      name: "workSchedule",
-      component: () => import("@/views/WorkScheduleView.vue")
+      name: 'workSchedule',
+      component: () => import('@/views/WorkScheduleView.vue')
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue')
     }
   ]
 })

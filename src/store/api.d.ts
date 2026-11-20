@@ -150,6 +150,32 @@ namespace API {
     staff?: Staff
   }
 
+  // /api/admin/config
+  type ConfigValueType = 'int' | 'double' | 'boolean' | 'string'
+
+  type ConfigGroup = {
+    id: number
+    name: string
+    display_name: string
+    sort_order: number
+  }
+
+  type ConfigItem = {
+    id: number
+    name: string
+    value: string
+    value_type: ConfigValueType
+    display_name: string
+    is_required: boolean
+    group_id: number
+    sort_order: number
+  }
+
+  type ConfigCatalog = {
+    groups: ConfigGroup[]
+    items: ConfigItem[]
+  }
+
   // /api/admin/staff
   type Staff = {
     id: number

@@ -5,6 +5,7 @@ import schedule from './schedule'
 import staff from './staff'
 import announcements from './announcements'
 import workSchedules from './work-schedules'
+import config from './config'
 
 // Domain modules that own reloadable data. `ui` is deliberately excluded.
 const registry = {
@@ -13,7 +14,7 @@ const registry = {
   schedule,
   staff,
   announcements,
-  workSchedules,
+  workSchedules
 }
 
 export type StorePart = keyof typeof registry
@@ -45,4 +46,4 @@ export async function refreshLoaded(...parts: StorePart[]): Promise<void> {
   await Promise.all(targets.map((part) => registry[part].refresh()))
 }
 
-export { ui, rooms, records, schedule, staff, announcements, workSchedules }
+export { ui, rooms, records, schedule, staff, announcements, workSchedules, config }

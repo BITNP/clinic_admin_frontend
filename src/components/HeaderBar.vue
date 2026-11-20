@@ -2,9 +2,14 @@
   <n-element class="headerBar">
     <FlexAside>
       <template #left>
-        <n-space horizantal style="display: flex; align-items: center;">
-          <n-button circle quaternary @click="openDrawer"
-            style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;" :disabled="props.disabled">
+        <n-space horizantal style="display: flex; align-items: center">
+          <n-button
+            circle
+            quaternary
+            @click="openDrawer"
+            style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+            :disabled="props.disabled"
+          >
             <template #icon>
               <n-icon>
                 <menu-filled />
@@ -20,8 +25,12 @@
         <n-space :align="'center'" v-if="!lt600px">
           <n-popover trigger="hover" v-if="isAdmin">
             <template #trigger>
-              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
-                @click="router.push('/rooms')">
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/rooms')"
+              >
                 <template #icon>
                   <n-icon>
                     <MeetingRoomFilled />
@@ -31,10 +40,31 @@
             </template>
             <span>场地管理</span>
           </n-popover>
+          <n-popover trigger="hover" v-if="isAdmin">
+            <template #trigger>
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/settings')"
+              >
+                <template #icon>
+                  <n-icon>
+                    <SettingsFilled />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            <span>系统设置</span>
+          </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
-              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
-                @click="router.push('/schedule')">
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/schedule')"
+              >
                 <template #icon>
                   <n-icon>
                     <EditCalendarFilled />
@@ -46,8 +76,12 @@
           </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
-              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
-                @click="router.push('/staff')">
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/staff')"
+              >
                 <template #icon>
                   <n-icon>
                     <BadgeFilled />
@@ -59,8 +93,12 @@
           </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
-              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
-                @click="router.push('/announcement')">
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/announcement')"
+              >
                 <template #icon>
                   <n-icon>
                     <EditNotificationsFilled />
@@ -72,8 +110,12 @@
           </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
-              <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;"
-                @click="router.push('/work-schedule')">
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/work-schedule')"
+              >
                 <template #icon>
                   <n-icon>
                     <CalendarMonthFilled />
@@ -88,14 +130,12 @@
               <n-popconfirm>
                 <template #trigger>
                   <n-button>
-                    {{ Auth.user.value?.account_id || "Who Are You?" }}
+                    {{ Auth.user.value?.account_id || 'Who Are You?' }}
                   </n-button>
                 </template>
                 真的要退出登录吗?
                 <template #action>
-                  <n-button size="small" @click="logout" type="primary">
-                    确认
-                  </n-button>
+                  <n-button size="small" @click="logout" type="primary"> 确认 </n-button>
                 </template>
               </n-popconfirm>
             </template>
@@ -103,8 +143,19 @@
           </n-popover>
         </n-space>
 
-        <n-dropdown v-else trigger="click" :options="menu" show-arrow @select="handleMenuClick" size="large">
-          <n-button circle quaternary style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px;">
+        <n-dropdown
+          v-else
+          trigger="click"
+          :options="menu"
+          show-arrow
+          @select="handleMenuClick"
+          size="large"
+        >
+          <n-button
+            circle
+            quaternary
+            style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+          >
             <template #icon>
               <n-icon>
                 <MoreVertFilled />
@@ -140,7 +191,7 @@
   }
 }
 
-.headerBar>div {
+.headerBar > div {
   display: flex;
   align-items: center;
 }
@@ -157,26 +208,26 @@
 </style>
 
 <script setup lang="ts">
-import MenuFilled from "@vicons/material/MenuFilled"
-import { ui } from '@/store';
-import Auth from "@/utils/Auth"
-import Sync from "@/utils/Sync"
-import FlexAside from "@/components/FlexAside.vue"
-import { useRouter } from "vue-router"
-import EditCalendarFilled from "@vicons/material/EditCalendarFilled"
-import EditNotificationsFilled from "@vicons/material/EditNotificationsFilled"
-import BadgeFilled from "@vicons/material/BadgeFilled"
-import CalendarMonthFilled from "@vicons/material/CalendarMonthFilled"
-import MeetingRoomFilled from "@vicons/material/MeetingRoomFilled"
-import MoreVertFilled from "@vicons/material/MoreVertFilled"
-import LogOutFilled from "@vicons/material/LogOutFilled"
-import { isAdminRole } from "@/utils/Roles"
-import { lt600px } from "@/utils/Responsive";
-import { h, computed, type Component } from "vue";
-import { NIcon, useMessage } from "naive-ui";
+import MenuFilled from '@vicons/material/MenuFilled'
+import { ui } from '@/store'
+import Auth from '@/utils/Auth'
+import Sync from '@/utils/Sync'
+import FlexAside from '@/components/FlexAside.vue'
+import { useRouter } from 'vue-router'
+import EditCalendarFilled from '@vicons/material/EditCalendarFilled'
+import EditNotificationsFilled from '@vicons/material/EditNotificationsFilled'
+import BadgeFilled from '@vicons/material/BadgeFilled'
+import CalendarMonthFilled from '@vicons/material/CalendarMonthFilled'
+import MeetingRoomFilled from '@vicons/material/MeetingRoomFilled'
+import SettingsFilled from '@vicons/material/SettingsFilled'
+import MoreVertFilled from '@vicons/material/MoreVertFilled'
+import LogOutFilled from '@vicons/material/LogOutFilled'
+import { isAdminRole } from '@/utils/Roles'
+import { lt600px } from '@/utils/Responsive'
+import { h, computed, type Component } from 'vue'
+import { NIcon } from 'naive-ui'
 
 const router = useRouter()
-const message = useMessage()
 
 const isAdmin = computed(() => isAdminRole(Auth.user.value?.role))
 
@@ -186,48 +237,60 @@ const renderIcon = (icon: Component) => {
 
 const menu = computed(() => [
   ...(isAdmin.value
-    ? [{
-        title: "场地管理",
-        key: "rooms",
-        icon: renderIcon(MeetingRoomFilled),
-        onClick: () => router.push("/rooms")
-      }]
+    ? [
+        {
+          title: '场地管理',
+          key: 'rooms',
+          icon: renderIcon(MeetingRoomFilled),
+          onClick: () => router.push('/rooms')
+        },
+        {
+          title: '系统设置',
+          key: 'settings',
+          icon: renderIcon(SettingsFilled),
+          onClick: () => router.push('/settings')
+        }
+      ]
     : []),
   {
-    title: "时间管理",
-    key: "schedule",
+    title: '时间管理',
+    key: 'schedule',
     icon: renderIcon(EditCalendarFilled),
-    onClick: () => router.push("/schedule")
+    onClick: () => router.push('/schedule')
   },
   {
-    title: "人员管理",
-    key: "staff",
+    title: '人员管理',
+    key: 'staff',
     icon: renderIcon(BadgeFilled),
-    onClick: () => router.push("/staff")
+    onClick: () => router.push('/staff')
   },
   {
-    title: "公告管理",
-    key: "announcement",
+    title: '公告管理',
+    key: 'announcement',
     icon: renderIcon(EditNotificationsFilled),
-    onClick: () => router.push("/announcement")
+    onClick: () => router.push('/announcement')
   },
   {
-    title: "排班管理",
-    key: "workSchedule",
+    title: '排班管理',
+    key: 'workSchedule',
     icon: renderIcon(CalendarMonthFilled),
-    onClick: () => router.push("/work-schedule")
+    onClick: () => router.push('/work-schedule')
   },
   {
-    title: "退出登录",
-    key: "logout",
+    title: '退出登录',
+    key: 'logout',
     icon: renderIcon(LogOutFilled),
-    onClick: () => { Sync.stop(); Auth.logout(); router.push("/login") }
+    onClick: () => {
+      Sync.stop()
+      Auth.logout()
+      router.push('/login')
+    }
   }
 ])
 
 const handleMenuClick = (key: string) => {
   console.debug(key)
-  const item = menu.value.find(item => item.key === key)
+  const item = menu.value.find((item) => item.key === key)
   if (item) {
     item.onClick()
   }
@@ -248,6 +311,6 @@ const props = defineProps({
 
 const logout = () => {
   Auth.logout()
-  router.push("/login")
+  router.push('/login')
 }
 </script>
