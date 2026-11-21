@@ -42,7 +42,7 @@
                       仅写入
                     </n-tag>
                   </n-space>
-                  <div v-if="settingHint(item)" class="setting-hint">{{ settingHint(item) }}</div>
+                  <div v-if="item.hint" class="setting-hint">{{ item.hint }}</div>
                 </div>
 
                 <div class="setting-editor">
@@ -67,7 +67,7 @@
                       :placeholder="settingPlaceholder(item)"
                       @update:value="draftFor(item).writeOnlyTouched = true"
                     />
-                    <span v-if="numberUnit(item)" class="setting-unit">{{ numberUnit(item) }}</span>
+                    <span v-if="item.unit" class="setting-unit">{{ item.unit }}</span>
                   </div>
 
                   <n-input
@@ -177,70 +177,6 @@ const settingPlaceholder = (item: API.ConfigItem) => {
 const numberMin = (item: API.ConfigItem) => {
   if (item.name === 'STAFF_VERSION') return 0
   return item.value_type === 'int' ? 1 : undefined
-}
-
-const numberUnit = (item: API.ConfigItem) => {
-  switch (item.name) {
-    case 'RECORD_PHOTO_MAX_SIZE_BYTES':
-      return '字节'
-    case 'TAGGER_CONTEXT_TOKENS':
-      return 'tokens'
-    case 'TAGGER_AGENT_POOL_SIZE':
-      return '并发'
-    default:
-      return ''
-  }
-}
-
-const formatBytes = (bytes: number) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return ''
-  if (bytes >= 1024 * 1024) {
-    const mib = bytes / (1024 * 1024)
-    return `${Number.isInteger(mib) ? mib : mib.toFixed(1)} MiB`
-  }
-  if (bytes >= 1024) {
-    const kib = bytes / 1024
-    return `${Number.isInteger(kib) ? kib : kib.toFixed(1)} KiB`
-  }
-  return `${bytes} B`
-}
-
-const settingHint = (item: API.ConfigItem) => {
-  switch (item.name) {
-    case 'TAGGER_LLM_API_KEY':
-      return '仅写入；保存后不会回显当前密钥。'
-    case 'TAGGER_LLM_BASE_URL':
-      return 'OpenAI 兼容接口地址；填写密钥时必填。'
-    case 'TAGGER_LLM_MODEL':
-      return '模型 ID；填写密钥时必填。'
-    case 'TAGGER_AGENT_POOL_SIZE':
-      return '扩容立即生效；缩容会等待多余的在途任务结束。'
-    case 'TAGGER_CONTEXT_TOKENS':
-      return '会话达到该 token 数后重置上下文。'
-    case 'TAGGER_TIMEOUT':
-      return 'Go 时长格式，必须大于 0。'
-    case 'SERVICE_DATE_REMINDER_ENABLED':
-      return '关闭后暂停新的提醒发现和发送；已提交的消息可能仍会送达。'
-    case 'SERVICE_DATE_REMINDER_LEAD_TIMES':
-      return '使用逗号分隔的 Go 时长，例如 5h,3h；每个值必须为正且至少精确到秒。'
-    case 'SERVICE_DATE_REMINDER_TEMPLATE':
-      return '支持 {{.Date}}、{{.StartTime}}、{{.Room}}、{{.PendingCount}} 和 {{.LeadTime}}；保存后下一条提醒生效。'
-    case 'MESSAGE_GATEWAY_URL':
-      return 'message-gateway 基础地址，必须使用 HTTP(S)，不能包含查询参数或片段。'
-    case 'MESSAGE_GATEWAY_ACCOUNT_TOKEN':
-      return '仅写入；必须是当前消息网关账号的 client_token。'
-    case 'MESSAGE_GATEWAY_TIMEOUT':
-      return 'Go 时长格式，必须大于 0；下一条提醒发送时生效。'
-    case 'RECORD_PHOTO_MAX_SIZE_BYTES': {
-      const bytes = draftFor(item).number
-      const formatted = bytes === null ? '' : formatBytes(bytes)
-      return `${formatted ? `当前输入 ${formatted}；` : ''}保存后下一次上传立即使用该限制。`
-    }
-    case 'MESSAGE_GATEWAY_ACCOUNT':
-      return '下一条提醒立即使用该账号；网关账号令牌必须与账号匹配。'
-    default:
-      return ''
-  }
 }
 
 const toDraft = (item: API.ConfigItem): Draft => {

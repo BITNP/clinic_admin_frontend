@@ -167,6 +167,8 @@ namespace API {
     value?: string
     value_type: ConfigValueType
     display_name: string
+    unit?: string
+    hint?: string
     is_required: boolean
     role_level: ConfigRoleLevel
     writeonly: boolean
