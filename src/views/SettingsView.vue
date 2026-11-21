@@ -149,7 +149,10 @@ const singleLineSettings = new Set([
   'TAGGER_LLM_BASE_URL',
   'TAGGER_LLM_MODEL',
   'TAGGER_TIMEOUT',
-  'MESSAGE_GATEWAY_ACCOUNT'
+  'MESSAGE_GATEWAY_URL',
+  'MESSAGE_GATEWAY_ACCOUNT',
+  'MESSAGE_GATEWAY_ACCOUNT_TOKEN',
+  'MESSAGE_GATEWAY_TIMEOUT'
 ])
 
 const isWriteOnly = (item: API.ConfigItem) => item.writeonly
@@ -158,13 +161,15 @@ const isSingleLineSetting = (item: API.ConfigItem) => singleLineSettings.has(ite
 
 const stringInputType = (item: API.ConfigItem) => {
   if (isWriteOnly(item)) return 'password'
-  if (item.name === 'TAGGER_LLM_BASE_URL') return 'url'
+  if (item.name === 'TAGGER_LLM_BASE_URL' || item.name === 'MESSAGE_GATEWAY_URL') return 'url'
   return isSingleLineSetting(item) ? 'text' : 'textarea'
 }
 
 const settingPlaceholder = (item: API.ConfigItem) => {
   if (item.writeonly) return '请输入新值（当前值不可读取）'
   if (item.name === 'TAGGER_TIMEOUT') return '例如 30s'
+  if (item.name === 'MESSAGE_GATEWAY_TIMEOUT') return '例如 5s'
+  if (item.name === 'MESSAGE_GATEWAY_URL') return '例如 http://message-gateway:8081'
   if (item.value_type === 'int' || item.value_type === 'double') return '请输入数值'
   return '请输入配置值'
 }
@@ -214,13 +219,25 @@ const settingHint = (item: API.ConfigItem) => {
       return '会话达到该 token 数后重置上下文。'
     case 'TAGGER_TIMEOUT':
       return 'Go 时长格式，必须大于 0。'
+    case 'SERVICE_DATE_REMINDER_ENABLED':
+      return '关闭后暂停新的提醒发现和发送；已提交的消息可能仍会送达。'
+    case 'SERVICE_DATE_REMINDER_LEAD_TIMES':
+      return '使用逗号分隔的 Go 时长，例如 5h,3h；每个值必须为正且至少精确到秒。'
+    case 'SERVICE_DATE_REMINDER_TEMPLATE':
+      return '支持 {{.Date}}、{{.StartTime}}、{{.Room}}、{{.PendingCount}} 和 {{.LeadTime}}；保存后下一条提醒生效。'
+    case 'MESSAGE_GATEWAY_URL':
+      return 'message-gateway 基础地址，必须使用 HTTP(S)，不能包含查询参数或片段。'
+    case 'MESSAGE_GATEWAY_ACCOUNT_TOKEN':
+      return '仅写入；必须是当前消息网关账号的 client_token。'
+    case 'MESSAGE_GATEWAY_TIMEOUT':
+      return 'Go 时长格式，必须大于 0；下一条提醒发送时生效。'
     case 'RECORD_PHOTO_MAX_SIZE_BYTES': {
       const bytes = draftFor(item).number
       const formatted = bytes === null ? '' : formatBytes(bytes)
       return `${formatted ? `当前输入 ${formatted}；` : ''}保存后下一次上传立即使用该限制。`
     }
     case 'MESSAGE_GATEWAY_ACCOUNT':
-      return '下一条提醒立即使用该账号；网关 Token 必须与账号匹配。'
+      return '下一条提醒立即使用该账号；网关账号令牌必须与账号匹配。'
     default:
       return ''
   }
