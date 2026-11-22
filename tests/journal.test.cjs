@@ -77,6 +77,34 @@ test('journal request URL includes every active filter and cursor', () => {
   assert.equal(url.searchParams.get('limit'), '20')
 })
 
+test('journal page normalization accepts legacy Go field names', () => {
+  const page = journal.normalizeJournalPage({
+    Items: [
+      {
+        ID: 1002,
+        OccurredAt: '2026-11-22T02:05:00Z',
+        RecordedAt: '2026-11-22T02:05:00.012Z',
+        ActorType: 'staff',
+        ActorID: '42',
+        Action: 'record.confirmed',
+        EntityType: 'record',
+        EntityID: '123',
+        OperationID: 'op_5f5f0ac1d4924c9f9d2d0e1b195f4c42',
+        CausedByEventID: null,
+        Details: { version: 1, changes: {} }
+      }
+    ],
+    NextCursor: 1002
+  })
+
+  assert.equal(page.items[0].id, 1002)
+  assert.equal(page.items[0].occurred_at, '2026-11-22T02:05:00Z')
+  assert.equal(page.items[0].actor_type, 'staff')
+  assert.equal(page.items[0].entity_type, 'record')
+  assert.equal(page.items[0].operation_id, 'op_5f5f0ac1d4924c9f9d2d0e1b195f4c42')
+  assert.equal(page.next_cursor, 1002)
+})
+
 test('journal date ranges include the whole local end day', () => {
   const range = [new Date(2026, 10, 1).getTime(), new Date(2026, 10, 23).getTime()]
   const filters = journal.withJournalDateRange(journal.emptyJournalFilters(), range)

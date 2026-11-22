@@ -49,6 +49,75 @@ const validTime = (value: string): string => {
   return new Date(value).toISOString()
 }
 
+const objectValue = (value: unknown, message: string): Record<string, unknown> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(message)
+  }
+  return value as Record<string, unknown>
+}
+
+const wireValue = (
+  value: Record<string, unknown>,
+  snakeCase: string,
+  exportedName: string
+): unknown => value[snakeCase] ?? value[exportedName]
+
+const requiredWireString = (
+  value: Record<string, unknown>,
+  snakeCase: string,
+  exportedName: string
+): string => {
+  const raw = wireValue(value, snakeCase, exportedName)
+  if (typeof raw !== 'string' || raw === '') {
+    throw new Error(`journal response is missing ${snakeCase}`)
+  }
+  return raw
+}
+
+const integerValue = (value: unknown, name: string): number => {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`journal response has an invalid ${name}`)
+  }
+  return parsed
+}
+
+export const normalizeJournalEvent = (value: unknown): API.JournalEvent => {
+  const event = objectValue(value, 'journal response event is invalid')
+  const details = wireValue(event, 'details', 'Details') ?? {}
+  const causedBy = wireValue(event, 'caused_by_event_id', 'CausedByEventID')
+  return {
+    id: integerValue(wireValue(event, 'id', 'ID'), 'event id'),
+    occurred_at: requiredWireString(event, 'occurred_at', 'OccurredAt'),
+    recorded_at: requiredWireString(event, 'recorded_at', 'RecordedAt'),
+    actor_type: requiredWireString(event, 'actor_type', 'ActorType') as API.JournalActorType,
+    actor_id: requiredWireString(event, 'actor_id', 'ActorID'),
+    action: requiredWireString(event, 'action', 'Action'),
+    entity_type: requiredWireString(event, 'entity_type', 'EntityType'),
+    entity_id: requiredWireString(event, 'entity_id', 'EntityID'),
+    operation_id: requiredWireString(event, 'operation_id', 'OperationID'),
+    caused_by_event_id:
+      causedBy === null || causedBy === undefined
+        ? null
+        : integerValue(causedBy, 'caused_by_event_id'),
+    details: objectValue(details, 'journal response details are invalid')
+  }
+}
+
+export const normalizeJournalPage = (value: unknown): API.JournalPage => {
+  const page = objectValue(value, 'journal response is invalid')
+  const rawItems = wireValue(page, 'items', 'Items')
+  if (!Array.isArray(rawItems)) {
+    throw new Error('journal response items are invalid')
+  }
+  const rawCursor = wireValue(page, 'next_cursor', 'NextCursor')
+  return {
+    items: rawItems.map(normalizeJournalEvent),
+    next_cursor:
+      rawCursor === null || rawCursor === undefined ? null : integerValue(rawCursor, 'next cursor')
+  }
+}
+
 export const normalizeJournalFilters = (filters: JournalFilters): JournalFilters => {
   const actorType =
     filters.actorType && journalActorTypes.includes(filters.actorType) ? filters.actorType : ''

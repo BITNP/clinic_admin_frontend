@@ -218,6 +218,7 @@ import {
   journalFiltersFromRouteQuery,
   journalFiltersToRouteQuery,
   journalRequestURL,
+  normalizeJournalPage,
   normalizeJournalFilters,
   withJournalDateRange,
   type JournalFilters
@@ -274,7 +275,12 @@ const errorText = (error: unknown): string => {
   const response = (
     error as { response?: { status?: number; data?: { error?: string; msg?: string } } }
   )?.response
-  return response?.data?.error || response?.data?.msg || '日志加载失败，请稍后重试。'
+  return (
+    response?.data?.error ||
+    response?.data?.msg ||
+    (error instanceof Error ? error.message : '') ||
+    '日志加载失败，请稍后重试。'
+  )
 }
 
 const handleRequestError = (error: unknown) => {
@@ -308,12 +314,13 @@ const loadFirst = async (clearSelection: boolean) => {
   errorMessage.value = ''
 
   try {
-    const response = await Api.get<API.JournalPage>(journalRequestURL(filters), {
+    const response = await Api.get<unknown>(journalRequestURL(filters), {
       signal: controller.signal
     })
     if (generation !== requestGeneration) return
-    events.value = response.data.items
-    nextCursor.value = response.data.next_cursor
+    const page = normalizeJournalPage(response.data)
+    events.value = page.items
+    nextCursor.value = page.next_cursor
     const previousStillPresent = events.value.some((event) => event.id === selectedId.value)
     if (clearSelection || !previousStillPresent) {
       selectedId.value = events.value[0]?.id ?? null
@@ -337,11 +344,12 @@ const loadMore = async () => {
   errorMessage.value = ''
 
   try {
-    const response = await Api.get<API.JournalPage>(journalRequestURL(filters, cursor))
+    const response = await Api.get<unknown>(journalRequestURL(filters, cursor))
     if (generation !== requestGeneration) return
+    const page = normalizeJournalPage(response.data)
     const known = new Set(events.value.map((event) => event.id))
-    events.value = [...events.value, ...response.data.items.filter((event) => !known.has(event.id))]
-    nextCursor.value = response.data.next_cursor
+    events.value = [...events.value, ...page.items.filter((event) => !known.has(event.id))]
+    nextCursor.value = page.next_cursor
   } catch (error) {
     if (generation !== requestGeneration) return
     handleRequestError(error)
