@@ -12,7 +12,7 @@
 
       <n-collapse-transition :show="action === 'confirm'">
         <div style="margin: 0.5em 0">调整场地</div>
-        <n-select :options="campusList" v-model:value="campusSelect" />
+        <n-select :options="roomList" v-model:value="roomSelect" />
       </n-collapse-transition>
 
       <n-collapse-transition :show="action === 'reject'">
@@ -107,7 +107,7 @@ const message = useMessage()
 const action = ref<'confirm' | 'reject' | 'refer'>('confirm')
 const reasonInput = ref('')
 const loading = ref(false)
-const campusSelect = ref<number | null>(null)
+const roomSelect = ref<number | null>(null)
 
 // This component instance is reused while navigating between tickets, so all
 // ticket-scoped form state must be re-seeded from the record on screen instead
@@ -120,15 +120,15 @@ watch(
   () => {
     reasonInput.value = ''
     action.value = 'confirm'
-    campusSelect.value = null
+    roomSelect.value = null
   },
   { immediate: true }
 )
 
-const campusList = computed(() =>
-  rooms.state.list.map((campus) => ({
-    label: campus.name,
-    value: campus.id
+const roomList = computed(() =>
+  rooms.state.list.map((room) => ({
+    label: room.name,
+    value: room.id
   }))
 )
 
@@ -163,10 +163,7 @@ const handleSubmit = async () => {
   } else {
     loading.value = true
     try {
-      await records.markConfirmed(record.id)
-      if (campusSelect.value !== null) {
-        console.log('campus change requested', campusSelect.value)
-      }
+      await records.markConfirmed(record.id, roomSelect.value ?? undefined)
       message.success('已确认受理')
     } catch {
       message.error('提交失败')

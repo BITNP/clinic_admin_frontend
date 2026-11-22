@@ -178,8 +178,9 @@ const updateWorkerDesc = async (id: number, workerDesc: string) => {
   return res.data
 }
 
-const markConfirmed = async (id: number) => {
-  const res = await Api.post<API.Record>(`/api/admin/records/${id}/confirm`)
+const markConfirmed = async (id: number, roomID?: number) => {
+  const body = roomID === undefined ? undefined : { room_id: roomID }
+  const res = await Api.post<API.Record>(`/api/admin/records/${id}/confirm`, body)
   state.items[id] = res.data
 }
 
