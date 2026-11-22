@@ -57,6 +57,23 @@
             </template>
             <span>系统设置</span>
           </n-popover>
+          <n-popover trigger="hover" v-if="isAdmin">
+            <template #trigger>
+              <n-button
+                circle
+                quaternary
+                style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+                @click="router.push('/journal')"
+              >
+                <template #icon>
+                  <n-icon>
+                    <HistoryFilled />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            <span>业务日志</span>
+          </n-popover>
           <n-popover trigger="hover">
             <template #trigger>
               <n-button
@@ -220,6 +237,7 @@ import BadgeFilled from '@vicons/material/BadgeFilled'
 import CalendarMonthFilled from '@vicons/material/CalendarMonthFilled'
 import MeetingRoomFilled from '@vicons/material/MeetingRoomFilled'
 import SettingsFilled from '@vicons/material/SettingsFilled'
+import HistoryFilled from '@vicons/material/HistoryFilled'
 import MoreVertFilled from '@vicons/material/MoreVertFilled'
 import LogOutFilled from '@vicons/material/LogOutFilled'
 import { isAdminRole } from '@/utils/Roles'
@@ -249,6 +267,12 @@ const menu = computed(() => [
           key: 'settings',
           icon: renderIcon(SettingsFilled),
           onClick: () => router.push('/settings')
+        },
+        {
+          title: '业务日志',
+          key: 'journal',
+          icon: renderIcon(HistoryFilled),
+          onClick: () => router.push('/journal')
         }
       ]
     : []),
