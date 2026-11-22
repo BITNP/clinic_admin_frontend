@@ -181,6 +181,28 @@ namespace API {
     items: ConfigItem[]
   }
 
+  // /api/admin/journal
+  type JournalActorType = 'staff' | 'customer' | 'system' | 'integration'
+
+  type JournalEvent = {
+    id: number
+    occurred_at: string
+    recorded_at: string
+    actor_type: JournalActorType
+    actor_id: string
+    action: string
+    entity_type: string
+    entity_id: string
+    operation_id: string
+    caused_by_event_id: number | null
+    details: Record<string, unknown>
+  }
+
+  type JournalPage = {
+    items: JournalEvent[]
+    next_cursor: number | null
+  }
+
   // /api/admin/staff
   type Staff = {
     id: number
