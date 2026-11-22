@@ -126,10 +126,12 @@ watch(
 )
 
 const roomList = computed(() =>
-  rooms.state.list.map((room) => ({
-    label: room.name,
-    value: room.id
-  }))
+  rooms.state.list
+    .filter((room) => room.enabled)
+    .map((room) => ({
+      label: room.name,
+      value: room.id
+    }))
 )
 
 const handleSubmit = async () => {
