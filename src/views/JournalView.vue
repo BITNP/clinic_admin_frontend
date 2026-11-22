@@ -1,10 +1,6 @@
 <template>
   <PageWrapper title="业务日志">
     <n-space vertical :size="18">
-      <n-alert type="info" :bordered="false">
-        只读审计记录，按发生时间从新到旧排列。日志与业务操作在同一事务中写入，不支持在页面中修改或删除。
-      </n-alert>
-
       <n-card class="filter-card" :bordered="false">
         <div class="filter-heading">
           <div>
