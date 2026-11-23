@@ -122,7 +122,7 @@
             :description="errorMessage"
           >
             <template #footer>
-              <n-button type="primary" @click="loadFirst(false)">重试</n-button>
+              <n-button type="primary" @click="retry">重试</n-button>
             </template>
           </n-result>
 
@@ -180,7 +180,7 @@
 import PageWrapper from '@/components/PageWrapper.vue'
 import JournalEventDetail from '@/components/JournalEventDetail.vue'
 import JournalItem from '@/components/JournalItem.vue'
-import Api from '@/utils/Api'
+import { journal } from '@/store'
 import Auth from '@/utils/Auth'
 import {
   emptyJournalFilters,
@@ -188,22 +188,16 @@ import {
   journalActorTypes,
   journalActorTypeLabel,
   journalDateRange,
-  journalEntityTypeLabel,
-  journalFilterSignature,
   journalFiltersFromRouteQuery,
   journalFiltersToRouteQuery,
-  journalRequestURL,
-  normalizeJournalEntityKinds,
-  normalizeJournalPage,
   normalizeJournalFilters,
   withJournalDateRange,
   type JournalFilters
 } from '@/utils/Journal'
 import { isAdminRole } from '@/utils/Roles'
 import { lt600px, lt800px } from '@/utils/Responsive'
-import type API from '@/store/api'
 import RefreshFilled from '@vicons/material/RefreshFilled'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -211,23 +205,24 @@ const message = useMessage()
 const route = useRoute()
 const router = useRouter()
 
-const filters = reactive<JournalFilters>(emptyJournalFilters())
 const draft = reactive<JournalFilters>(emptyJournalFilters())
 const dateRange = ref<[number, number] | null>(null)
 const filtersExpanded = ref(true)
-const events = ref<API.JournalEvent[]>([])
-const entityKinds = ref<API.JournalEntityKind[]>([])
-const entityKindsLoading = ref(false)
-const selectedId = ref<number | null>(null)
-const nextCursor = ref<number | null>(null)
-const loading = ref(false)
-const loadingMore = ref(false)
-const errorMessage = ref('')
 const detailDrawerOpen = ref(false)
 
-let authorized = false
-let requestGeneration = 0
-let requestController: AbortController | null = null
+const events = computed(() => journal.state.events)
+const entityKinds = computed(() => journal.state.entityKinds)
+const entityKindsLoading = computed(() => journal.state.entityKindsLoading)
+const selectedId = computed(() => journal.state.selectedId)
+const nextCursor = computed(() => journal.state.nextCursor)
+const loading = computed(() => journal.state.loading)
+const loadingMore = computed(() => journal.state.loadingMore)
+const errorMessage = computed({
+  get: () => journal.state.error,
+  set: (value: string) => {
+    journal.state.error = value
+  }
+})
 
 const actorOptions = journalActorTypes.map((value) => ({
   value,
@@ -238,7 +233,7 @@ const entityOptions = computed(() => [
   { label: '全部', value: '' },
   ...entityKinds.value.map((kind) => ({
     value: kind.entity_type,
-    label: journalEntityTypeLabel(kind.entity_type)
+    label: kind.entity_type
   }))
 ])
 
@@ -258,9 +253,7 @@ const actionOptions = computed(() => {
   }))
 })
 
-const selectedEvent = computed(() => {
-  return events.value.find((event) => event.id === selectedId.value) ?? null
-})
+const selectedEvent = computed(() => journal.selectedEvent())
 
 watch(
   () => draft.entityType,
@@ -307,83 +300,11 @@ const handleRequestError = (error: unknown) => {
   errorMessage.value = errorText(error)
 }
 
-const loadEntityKinds = async (): Promise<boolean> => {
-  entityKindsLoading.value = true
-  try {
-    const response = await Api.get<unknown>('/api/admin/journal/entity-kinds')
-    entityKinds.value = normalizeJournalEntityKinds(response.data)
-    return true
-  } catch (error) {
-    const status = (error as { response?: { status?: number } })?.response?.status
-    if (status === 401 || status === 403) {
-      handleRequestError(error)
-      return false
-    }
-    message.warning('加载筛选选项失败，仍可使用当前筛选。')
-    return true
-  } finally {
-    entityKindsLoading.value = false
-  }
-}
-
-const cancelActiveRequest = () => {
-  requestGeneration += 1
-  requestController?.abort()
-  requestController = null
-}
-
-const loadFirst = async (clearSelection: boolean) => {
-  if (!authorized) return
-  cancelActiveRequest()
-  loadingMore.value = false
-  const generation = requestGeneration
-  const controller = new AbortController()
-  requestController = controller
-  loading.value = true
-  errorMessage.value = ''
-
-  try {
-    const response = await Api.get<unknown>(journalRequestURL(filters), {
-      signal: controller.signal
-    })
-    if (generation !== requestGeneration) return
-    const page = normalizeJournalPage(response.data)
-    events.value = page.items
-    nextCursor.value = page.next_cursor
-    const previousStillPresent = events.value.some((event) => event.id === selectedId.value)
-    if (clearSelection || !previousStillPresent) {
-      selectedId.value = events.value[0]?.id ?? null
-    }
-  } catch (error) {
-    if (controller.signal.aborted || generation !== requestGeneration) return
-    handleRequestError(error)
-  } finally {
-    if (generation === requestGeneration && requestController === controller) {
-      loading.value = false
-      requestController = null
-    }
-  }
-}
-
 const loadMore = async () => {
-  if (!authorized || nextCursor.value === null || loading.value || loadingMore.value) return
-  const generation = requestGeneration
-  const cursor = nextCursor.value
-  loadingMore.value = true
-  errorMessage.value = ''
-
   try {
-    const response = await Api.get<unknown>(journalRequestURL(filters, cursor))
-    if (generation !== requestGeneration) return
-    const page = normalizeJournalPage(response.data)
-    const known = new Set(events.value.map((event) => event.id))
-    events.value = [...events.value, ...page.items.filter((event) => !known.has(event.id))]
-    nextCursor.value = page.next_cursor
+    await journal.loadMore()
   } catch (error) {
-    if (generation !== requestGeneration) return
     handleRequestError(error)
-  } finally {
-    if (generation === requestGeneration) loadingMore.value = false
   }
 }
 
@@ -393,32 +314,46 @@ const applyFilters = async () => {
     message.warning('开始日期不能晚于结束日期。')
     return
   }
-  const changed = journalFilterSignature(next) !== journalFilterSignature(filters)
-  Object.assign(filters, next)
   Object.assign(draft, next)
   dateRange.value = journalDateRange(next)
   await router.replace({ name: 'journal', query: journalFiltersToRouteQuery(next) })
-  if (!changed && events.value.length) {
-    selectedId.value = events.value[0]?.id ?? null
+  try {
+    await journal.applyFilters(next)
+  } catch (error) {
+    handleRequestError(error)
   }
-  await loadFirst(true)
 }
 
 const resetFilters = async () => {
   const next = emptyJournalFilters()
-  Object.assign(filters, next)
   Object.assign(draft, next)
   dateRange.value = null
   await router.replace({ name: 'journal' })
-  await loadFirst(true)
+  try {
+    await journal.resetFilters()
+  } catch (error) {
+    handleRequestError(error)
+  }
 }
 
 const refresh = async () => {
-  await loadFirst(false)
+  try {
+    await journal.refresh()
+  } catch (error) {
+    handleRequestError(error)
+  }
+}
+
+const retry = async () => {
+  try {
+    await journal.ensureLoaded(journal.state.filters)
+  } catch (error) {
+    handleRequestError(error)
+  }
 }
 
 const selectEvent = (id: number) => {
-  selectedId.value = id
+  journal.select(id)
   if (lt800px.value) detailDrawerOpen.value = true
 }
 
@@ -430,18 +365,15 @@ onMounted(async () => {
     return
   }
 
-  authorized = true
-  if (!(await loadEntityKinds())) return
   const initial = journalFiltersFromRouteQuery(route.query)
-  Object.assign(filters, initial)
   Object.assign(draft, initial)
   dateRange.value = journalDateRange(initial)
   filtersExpanded.value = window.innerWidth >= 800
-  await loadFirst(true)
-})
-
-onBeforeUnmount(() => {
-  cancelActiveRequest()
+  try {
+    await journal.ensureLoaded(initial)
+  } catch (error) {
+    handleRequestError(error)
+  }
 })
 </script>
 

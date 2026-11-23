@@ -11,7 +11,7 @@
           {{ journalActorTypeLabel(event.actor_type) }}
         </n-tag>
         <n-tag size="small" :bordered="false">
-          {{ journalEntityTypeLabel(event.entity_type) }} #{{ event.entity_id }}
+          {{ event.entity_type }} #{{ event.entity_id }}
         </n-tag>
       </n-space>
     </div>
@@ -24,7 +24,7 @@
       style="margin-top: 12px"
       @click="router.push(recordPath)"
     >
-      查看关联工单
+      查看关联对象
     </n-button>
 
     <div class="fact-grid">
@@ -42,7 +42,7 @@
       </div>
       <div class="fact">
         <span>关联对象</span>
-        <strong>{{ journalEntityTypeLabel(event.entity_type) }} #{{ event.entity_id }}</strong>
+        <strong>{{ event.entity_type }} #{{ event.entity_id }}</strong>
       </div>
       <div class="fact wide">
         <span>操作组</span>
@@ -114,7 +114,6 @@ import {
   journalActionLabel,
   journalActorTypeLabel,
   journalChangeRows,
-  journalEntityTypeLabel,
   journalOtherDetailLabel,
   journalOtherDetails,
   journalRecordPath

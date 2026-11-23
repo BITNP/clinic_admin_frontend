@@ -18,13 +18,13 @@
       {{ formatJournalTime(props.data.occurred_at) }}
     </template>
     <div class="journal-body">
-      <span>{{ journalEntityTypeLabel(props.data.entity_type) }} #{{ props.data.entity_id }}</span>
+      <span>{{ props.data.entity_type }} #{{ props.data.entity_id }}</span>
       <code>{{ props.data.action }}</code>
       <span class="operation-id">{{ props.data.operation_id }}</span>
     </div>
     <template #action>
       <n-space>
-        <StatusBadge status="default" :text="journalEntityTypeLabel(props.data.entity_type)" />
+        <StatusBadge status="default" :text="props.data.entity_type" />
         <StatusBadge status="default" :text="journalActorTypeLabel(props.data.actor_type)" />
       </n-space>
     </template>
@@ -38,8 +38,7 @@ import {
   formatJournalDate,
   formatJournalTime,
   journalActionLabel,
-  journalActorTypeLabel,
-  journalEntityTypeLabel
+  journalActorTypeLabel
 } from '@/utils/Journal'
 import ApiFilled from '@vicons/material/ApiFilled'
 import ComputerFilled from '@vicons/material/ComputerFilled'

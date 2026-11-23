@@ -74,7 +74,7 @@ test('journal request URL includes every active filter and cursor', () => {
   assert.equal(url.searchParams.get('from'), '2026-11-01T00:00:00.000Z')
   assert.equal(url.searchParams.get('to'), '2026-11-23T23:59:59.999Z')
   assert.equal(url.searchParams.get('cursor'), '91')
-  assert.equal(url.searchParams.get('limit'), '20')
+  assert.equal(url.searchParams.get('limit'), '100')
 })
 
 test('journal page normalization accepts legacy Go field names', () => {
@@ -133,8 +133,7 @@ test('journal entity kind normalization validates and deduplicates options', () 
     () => journal.normalizeJournalEntityKinds({ items: [{ entity_type: 'record', actions: [1] }] }),
     /action is invalid/
   )
-  assert.equal(journal.journalEntityTypeLabel('record'), '工单')
-  assert.equal(journal.journalOtherDetailLabel('record_id'), '工单 ID')
+  assert.equal(journal.journalOtherDetailLabel('record_id'), 'record_id')
 })
 
 test('journal date ranges include the whole local end day', () => {

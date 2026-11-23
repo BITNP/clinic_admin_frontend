@@ -190,7 +190,7 @@ export const journalFilterSignature = (filters: JournalFilters): string => {
 export const journalRequestURL = (
   filters: JournalFilters,
   cursor: number | null = null,
-  limit = 20
+  limit = 100
 ): string => {
   const normalized = normalizeJournalFilters(filters)
   const params = new URLSearchParams()
@@ -237,7 +237,7 @@ const actionLabels: Record<string, string> = {
   'record.completed': '完成维修',
   'record.no_show': '客户未到店',
   'record.notes_updated': '更新处理记录',
-  'record.reverted': '撤销工单操作',
+  'record.reverted': '撤销上一步操作',
   'config_item.updated': '更新配置项',
   'notification.requested': '创建提醒',
   'notification.attempt_started': '开始发送提醒',
@@ -257,23 +257,6 @@ export const journalActorTypeLabel = (actorType: API.JournalActorType): string =
       return '系统'
     case 'integration':
       return '外部集成'
-  }
-}
-
-export const journalEntityTypeLabel = (entityType: string): string => {
-  switch (entityType) {
-    case 'record':
-      return '工单'
-    case 'config_item':
-      return '配置项'
-    case 'service_date':
-      return '服务日期'
-    case 'announcement':
-      return '公告'
-    case 'work_schedule':
-      return '排班'
-    default:
-      return entityType
   }
 }
 
@@ -307,7 +290,6 @@ const otherDetailLabels: Record<string, string> = {
   reason: '原因',
   kind: '类型',
   recipient: '接收方',
-  record_id: '工单 ID',
   service_date_id: '服务日期 ID',
   next_attempt_at: '下次尝试',
   reverted_event_id: '被撤销事件 ID',
