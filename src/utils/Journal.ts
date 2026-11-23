@@ -118,6 +118,31 @@ export const normalizeJournalPage = (value: unknown): API.JournalPage => {
   }
 }
 
+export const normalizeJournalEntityKinds = (value: unknown): API.JournalEntityKind[] => {
+  const response = objectValue(value, 'journal entity kinds response is invalid')
+  const rawItems = wireValue(response, 'items', 'Items')
+  if (!Array.isArray(rawItems)) {
+    throw new Error('journal entity kinds response items are invalid')
+  }
+  return rawItems.map((raw) => {
+    const item = objectValue(raw, 'journal entity kind is invalid')
+    const rawActions = wireValue(item, 'actions', 'Actions')
+    if (!Array.isArray(rawActions)) {
+      throw new Error('journal entity kind actions are invalid')
+    }
+    const actions = rawActions.map((action) => {
+      if (typeof action !== 'string' || action.trim() === '') {
+        throw new Error('journal entity kind action is invalid')
+      }
+      return action.trim()
+    })
+    return {
+      entity_type: requiredWireString(item, 'entity_type', 'EntityType'),
+      actions: [...new Set(actions)]
+    }
+  })
+}
+
 export const normalizeJournalFilters = (filters: JournalFilters): JournalFilters => {
   const actorType =
     filters.actorType && journalActorTypes.includes(filters.actorType) ? filters.actorType : ''

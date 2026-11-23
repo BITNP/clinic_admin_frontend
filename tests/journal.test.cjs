@@ -105,6 +105,36 @@ test('journal page normalization accepts legacy Go field names', () => {
   assert.equal(page.next_cursor, 1002)
 })
 
+test('journal entity kind normalization validates and deduplicates options', () => {
+  const kinds = journal.normalizeJournalEntityKinds({
+    items: [
+      {
+        entity_type: 'record',
+        actions: ['record.updated', ' record.confirmed ', 'record.updated']
+      },
+      {
+        entity_type: 'service_date',
+        actions: ['notification.requested']
+      }
+    ]
+  })
+
+  assert.deepEqual(JSON.parse(JSON.stringify(kinds)), [
+    {
+      entity_type: 'record',
+      actions: ['record.updated', 'record.confirmed']
+    },
+    {
+      entity_type: 'service_date',
+      actions: ['notification.requested']
+    }
+  ])
+  assert.throws(
+    () => journal.normalizeJournalEntityKinds({ items: [{ entity_type: 'record', actions: [1] }] }),
+    /action is invalid/
+  )
+})
+
 test('journal date ranges include the whole local end day', () => {
   const range = [new Date(2026, 10, 1).getTime(), new Date(2026, 10, 23).getTime()]
   const filters = journal.withJournalDateRange(journal.emptyJournalFilters(), range)

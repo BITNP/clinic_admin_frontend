@@ -17,11 +17,12 @@
         <div v-show="filtersExpanded" class="filter-body">
           <label class="filter-field">
             <span>实体类型</span>
-            <n-input
+            <n-select
               v-model:value="draft.entityType"
-              placeholder="例如 record"
+              :options="entityOptions"
+              :loading="entityKindsLoading"
+              placeholder="全部"
               clearable
-              @keyup.enter="applyFilters"
             />
           </label>
           <label class="filter-field">
@@ -53,11 +54,12 @@
           </label>
           <label class="filter-field">
             <span>操作</span>
-            <n-input
+            <n-select
               v-model:value="draft.action"
-              placeholder="例如 record.confirmed"
+              :options="actionOptions"
+              :loading="entityKindsLoading"
+              placeholder="全部"
               clearable
-              @keyup.enter="applyFilters"
             />
           </label>
           <label class="filter-field date-field">
@@ -130,37 +132,15 @@
             style="padding: 72px 24px"
           />
 
-          <div v-else class="event-list">
-            <button
+          <n-list v-else hoverable clickable class="event-list">
+            <n-list-item
               v-for="event in events"
               :key="event.id"
-              type="button"
-              class="event-row"
               :class="{ selected: selectedId === event.id }"
-              :aria-pressed="selectedId === event.id"
               @click="selectEvent(event.id)"
             >
-              <span class="timeline-marker" :class="`actor-${event.actor_type}`" />
-              <span class="event-time">
-                <strong>{{ formatJournalTime(event.occurred_at) }}</strong>
-                <span>{{ formatJournalDate(event.occurred_at) }}</span>
-              </span>
-              <span class="event-main">
-                <span class="event-title">
-                  <strong>{{ journalActionLabel(event.action) }}</strong>
-                  <n-tag size="small" :bordered="false">
-                    {{ journalEntityTypeLabel(event.entity_type) }} #{{ event.entity_id }}
-                  </n-tag>
-                </span>
-                <span class="event-meta">
-                  {{ journalActorTypeLabel(event.actor_type) }} · {{ event.actor_id }}
-                  <span class="meta-separator">/</span>
-                  {{ event.operation_id }}
-                </span>
-                <code class="event-action">{{ event.action }}</code>
-              </span>
-              <n-icon class="event-chevron" :size="18"><ChevronRightFilled /></n-icon>
-            </button>
+              <JournalItem :data="event" />
+            </n-list-item>
 
             <div class="load-more">
               <n-button
@@ -174,7 +154,7 @@
               </n-button>
               <n-text v-else depth="3">没有更早的日志了</n-text>
             </div>
-          </div>
+          </n-list>
         </n-card>
 
         <n-card v-if="!lt800px" class="detail-card inspector" :bordered="false">
@@ -199,12 +179,11 @@
 <script setup lang="ts">
 import PageWrapper from '@/components/PageWrapper.vue'
 import JournalEventDetail from '@/components/JournalEventDetail.vue'
+import JournalItem from '@/components/JournalItem.vue'
 import Api from '@/utils/Api'
 import Auth from '@/utils/Auth'
 import {
   emptyJournalFilters,
-  formatJournalDate,
-  formatJournalTime,
   journalActionLabel,
   journalActorTypes,
   journalActorTypeLabel,
@@ -214,6 +193,7 @@ import {
   journalFiltersFromRouteQuery,
   journalFiltersToRouteQuery,
   journalRequestURL,
+  normalizeJournalEntityKinds,
   normalizeJournalPage,
   normalizeJournalFilters,
   withJournalDateRange,
@@ -222,7 +202,6 @@ import {
 import { isAdminRole } from '@/utils/Roles'
 import { lt600px, lt800px } from '@/utils/Responsive'
 import type API from '@/store/api'
-import ChevronRightFilled from '@vicons/material/ChevronRightFilled'
 import RefreshFilled from '@vicons/material/RefreshFilled'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
@@ -237,6 +216,8 @@ const draft = reactive<JournalFilters>(emptyJournalFilters())
 const dateRange = ref<[number, number] | null>(null)
 const filtersExpanded = ref(true)
 const events = ref<API.JournalEvent[]>([])
+const entityKinds = ref<API.JournalEntityKind[]>([])
+const entityKindsLoading = ref(false)
 const selectedId = ref<number | null>(null)
 const nextCursor = ref<number | null>(null)
 const loading = ref(false)
@@ -253,9 +234,42 @@ const actorOptions = journalActorTypes.map((value) => ({
   label: journalActorTypeLabel(value)
 }))
 
+const entityOptions = computed(() => [
+  { label: '全部', value: '' },
+  ...entityKinds.value.map((kind) => ({
+    value: kind.entity_type,
+    label: journalEntityTypeLabel(kind.entity_type)
+  }))
+])
+
+const actionValues = computed(() => {
+  if (draft.entityType) {
+    return entityKinds.value.find((kind) => kind.entity_type === draft.entityType)?.actions ?? []
+  }
+  return [...new Set(entityKinds.value.flatMap((kind) => kind.actions))].sort()
+})
+
+const actionOptions = computed(() => {
+  const values = [...actionValues.value]
+  if (draft.action && !values.includes(draft.action)) values.push(draft.action)
+  return values.map((value) => ({
+    value,
+    label: journalActionLabel(value)
+  }))
+})
+
 const selectedEvent = computed(() => {
   return events.value.find((event) => event.id === selectedId.value) ?? null
 })
+
+watch(
+  () => draft.entityType,
+  (entityType) => {
+    if (!entityType || !draft.action) return
+    const kind = entityKinds.value.find((item) => item.entity_type === entityType)
+    if (kind && !kind.actions.includes(draft.action)) draft.action = ''
+  }
+)
 
 watch(dateRange, (range) => {
   const next = withJournalDateRange(draft, range)
@@ -291,6 +305,25 @@ const handleRequestError = (error: unknown) => {
     return
   }
   errorMessage.value = errorText(error)
+}
+
+const loadEntityKinds = async (): Promise<boolean> => {
+  entityKindsLoading.value = true
+  try {
+    const response = await Api.get<unknown>('/api/admin/journal/entity-kinds')
+    entityKinds.value = normalizeJournalEntityKinds(response.data)
+    return true
+  } catch (error) {
+    const status = (error as { response?: { status?: number } })?.response?.status
+    if (status === 401 || status === 403) {
+      handleRequestError(error)
+      return false
+    }
+    message.warning('加载筛选选项失败，仍可使用当前筛选。')
+    return true
+  } finally {
+    entityKindsLoading.value = false
+  }
 }
 
 const cancelActiveRequest = () => {
@@ -398,6 +431,7 @@ onMounted(async () => {
   }
 
   authorized = true
+  if (!(await loadEntityKinds())) return
   const initial = journalFiltersFromRouteQuery(route.query)
   Object.assign(filters, initial)
   Object.assign(draft, initial)
@@ -485,139 +519,18 @@ onBeforeUnmount(() => {
 }
 
 .event-list {
-  position: relative;
   margin-top: 14px;
 }
 
-.event-list::before {
-  position: absolute;
-  top: 22px;
-  bottom: 76px;
-  left: 10px;
-  width: 1px;
-  background: var(--color-border);
-  content: '';
-}
-
-.event-row {
-  position: relative;
-  display: grid;
-  width: 100%;
-  grid-template-columns: 20px 120px minmax(0, 1fr) 20px;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  color: inherit;
-  text-align: left;
-  background: transparent;
-  cursor: pointer;
+.event-list :deep(.n-list-item) {
   transition:
     background-color 0.16s ease,
     border-color 0.16s ease;
 }
 
-.event-row:hover {
-  background: var(--color-background-mute);
-}
-
-.event-row.selected {
-  border-color: rgba(24, 160, 88, 0.32);
+.event-list :deep(.n-list-item.selected) {
   background: rgba(24, 160, 88, 0.09);
-}
-
-.timeline-marker {
-  position: relative;
-  z-index: 1;
-  width: 10px;
-  height: 10px;
-  justify-self: center;
-  border: 2px solid var(--color-background-soft);
-  border-radius: 50%;
-  background: #8a8a8a;
-  box-shadow: 0 0 0 1px var(--color-border);
-}
-
-.timeline-marker.actor-staff {
-  background: #18a058;
-}
-
-.timeline-marker.actor-customer {
-  background: #2080f0;
-}
-
-.timeline-marker.actor-system {
-  background: #8a8a8a;
-}
-
-.timeline-marker.actor-integration {
-  background: #7b61ff;
-}
-
-.event-time {
-  display: grid;
-  gap: 1px;
-  font-variant-numeric: tabular-nums;
-}
-
-.event-time strong {
-  font-size: 0.9rem;
-}
-
-.event-time span {
-  color: var(--color-text);
-  font-size: 0.74rem;
-  opacity: 0.55;
-}
-
-.event-main {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-
-.event-title {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.event-title strong {
-  color: var(--color-heading);
-  font-size: 0.95rem;
-}
-
-.event-meta {
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: 0.78rem;
-  opacity: 0.66;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.meta-separator {
-  padding: 0 4px;
-  opacity: 0.45;
-}
-
-.event-action {
-  color: var(--color-text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.72rem;
-  opacity: 0.48;
-}
-
-.event-chevron {
-  opacity: 0.35;
-}
-
-.event-row.selected .event-chevron {
-  color: #18a058;
-  opacity: 0.9;
+  box-shadow: inset 3px 0 #18a058;
 }
 
 .load-more {
@@ -625,7 +538,7 @@ onBeforeUnmount(() => {
   min-height: 54px;
   align-items: center;
   justify-content: center;
-  padding: 8px 0 0 32px;
+  padding: 12px 20px;
 }
 
 @media screen and (max-width: 1200px) {
@@ -658,43 +571,6 @@ onBeforeUnmount(() => {
 
   .filter-actions > * {
     flex: 1;
-  }
-
-  .event-row {
-    grid-template-columns: 16px minmax(0, 1fr) 18px;
-    gap: 8px;
-    padding: 14px 6px;
-  }
-
-  .event-time {
-    grid-column: 2;
-    grid-row: 1;
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-  }
-
-  .event-main {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .timeline-marker {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
-
-  .event-chevron {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-  }
-
-  .event-list::before {
-    left: 13px;
-  }
-
-  .event-meta {
-    white-space: normal;
   }
 }
 </style>

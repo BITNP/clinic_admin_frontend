@@ -203,6 +203,11 @@ namespace API {
     next_cursor: number | null
   }
 
+  type JournalEntityKind = {
+    entity_type: string
+    actions: string[]
+  }
+
   // /api/admin/staff
   type Staff = {
     id: number

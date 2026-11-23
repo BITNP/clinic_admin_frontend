@@ -12,6 +12,7 @@ declare module 'vue' {
     FlexAside: typeof import('./src/components/FlexAside.vue')['default']
     HeaderBar: typeof import('./src/components/HeaderBar.vue')['default']
     JournalEventDetail: typeof import('./src/components/JournalEventDetail.vue')['default']
+    JournalItem: typeof import('./src/components/JournalItem.vue')['default']
     MilkdownEditor: typeof import('./src/components/MilkdownEditor.vue')['default']
     NAlert: typeof import('naive-ui')['NAlert']
     NAvatar: typeof import('naive-ui')['NAvatar']
