@@ -102,12 +102,6 @@
                 </template>
               </n-text>
             </div>
-            <n-button :loading="loading" :disabled="loading" @click="refresh">
-              <template #icon>
-                <n-icon><RefreshFilled /></n-icon>
-              </template>
-              刷新
-            </n-button>
           </div>
 
           <div v-if="loading && events.length === 0" class="loading-state">
@@ -194,7 +188,6 @@ import {
 } from '@/utils/Journal'
 import { isAdminRole } from '@/utils/Roles'
 import { lt600px, lt800px } from '@/utils/Responsive'
-import RefreshFilled from '@vicons/material/RefreshFilled'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
@@ -329,14 +322,6 @@ const resetFilters = async () => {
   await router.replace({ name: 'journal' })
   try {
     await journal.resetFilters()
-  } catch (error) {
-    handleRequestError(error)
-  }
-}
-
-const refresh = async () => {
-  try {
-    await journal.refresh()
   } catch (error) {
     handleRequestError(error)
   }
