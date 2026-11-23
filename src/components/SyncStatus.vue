@@ -20,7 +20,7 @@ import { computed } from 'vue'
 import Sync from '@/utils/Sync'
 
 const connected = Sync.isConnected
-const status = computed(() => (connected.value ? 'connected' : 'disconnected'))
+const status = computed(() => (connected.value ? '已连接' : '未连接'))
 </script>
 
 <style scoped>
