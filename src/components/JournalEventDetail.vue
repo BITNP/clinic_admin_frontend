@@ -24,7 +24,7 @@
       style="margin-top: 12px"
       @click="router.push(recordPath)"
     >
-      查看关联记录
+      查看关联工单
     </n-button>
 
     <div class="fact-grid">

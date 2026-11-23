@@ -133,6 +133,8 @@ test('journal entity kind normalization validates and deduplicates options', () 
     () => journal.normalizeJournalEntityKinds({ items: [{ entity_type: 'record', actions: [1] }] }),
     /action is invalid/
   )
+  assert.equal(journal.journalEntityTypeLabel('record'), '工单')
+  assert.equal(journal.journalOtherDetailLabel('record_id'), '工单 ID')
 })
 
 test('journal date ranges include the whole local end day', () => {
