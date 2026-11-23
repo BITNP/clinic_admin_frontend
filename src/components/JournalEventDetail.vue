@@ -3,12 +3,12 @@
     <div class="detail-heading">
       <div>
         <n-text depth="3">事件 #{{ event.id }}</n-text>
-        <h2>{{ journalActionLabel(event.action) }}</h2>
+        <h2>{{ event.action }}</h2>
         <code class="raw-action">{{ event.action }}</code>
       </div>
       <n-space :size="6" vertical align="end">
         <n-tag size="small" :bordered="false" :type="actorTagType">
-          {{ journalActorTypeLabel(event.actor_type) }}
+          {{ event.actor_type }}
         </n-tag>
         <n-tag size="small" :bordered="false">
           {{ event.entity_type }} #{{ event.entity_id }}
@@ -38,7 +38,7 @@
       </div>
       <div class="fact">
         <span>操作者</span>
-        <strong> {{ journalActorTypeLabel(event.actor_type) }} · {{ event.actor_id }} </strong>
+        <strong>{{ event.actor_type }} · {{ event.actor_id }}</strong>
       </div>
       <div class="fact">
         <span>关联对象</span>
@@ -90,7 +90,7 @@
       </div>
       <dl class="other-details">
         <div v-for="[key, value] in otherDetails" :key="key">
-          <dt>{{ journalOtherDetailLabel(key) }}</dt>
+          <dt>{{ key }}</dt>
           <dd>{{ formatJournalValue(value) }}</dd>
         </div>
       </dl>
@@ -111,10 +111,7 @@ import type API from '@/store/api'
 import {
   formatJournalDateTime,
   formatJournalValue,
-  journalActionLabel,
-  journalActorTypeLabel,
   journalChangeRows,
-  journalOtherDetailLabel,
   journalOtherDetails,
   journalRecordPath
 } from '@/utils/Journal'

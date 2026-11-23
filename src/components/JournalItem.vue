@@ -8,7 +8,7 @@
       </n-avatar>
     </template>
     <template #header>
-      {{ journalActionLabel(props.data.action) }}
+      {{ props.data.action }}
     </template>
     <template #header-extra>
       <n-text depth="3">{{ `#${props.data.id}` }}</n-text>
@@ -25,7 +25,7 @@
     <template #action>
       <n-space>
         <StatusBadge status="default" :text="props.data.entity_type" />
-        <StatusBadge status="default" :text="journalActorTypeLabel(props.data.actor_type)" />
+        <StatusBadge status="default" :text="props.data.actor_type" />
       </n-space>
     </template>
   </n-thing>
@@ -34,12 +34,7 @@
 <script setup lang="tsx">
 import StatusBadge from '@/components/StatusBadge.vue'
 import type API from '@/store/api'
-import {
-  formatJournalDate,
-  formatJournalTime,
-  journalActionLabel,
-  journalActorTypeLabel
-} from '@/utils/Journal'
+import { formatJournalDate, formatJournalTime } from '@/utils/Journal'
 import ApiFilled from '@vicons/material/ApiFilled'
 import ComputerFilled from '@vicons/material/ComputerFilled'
 import PersonFilled from '@vicons/material/PersonFilled'

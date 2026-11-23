@@ -228,90 +228,17 @@ export const withJournalDateRange = (
   return { ...filters, from: from.toISOString(), to: to.toISOString() }
 }
 
-const actionLabels: Record<string, string> = {
-  'record.confirmed': '确认预约',
-  'record.rejected': '拒绝预约',
-  'record.referred': '转诊预约',
-  'record.arrived': '客户到店',
-  'record.started': '开始维修',
-  'record.completed': '完成维修',
-  'record.no_show': '客户未到店',
-  'record.notes_updated': '更新处理记录',
-  'record.reverted': '撤销上一步操作',
-  'config_item.updated': '更新配置项',
-  'notification.requested': '创建提醒',
-  'notification.attempt_started': '开始发送提醒',
-  'notification.sent': '提醒发送成功',
-  'notification.failed': '提醒发送失败'
-}
-
-export const journalActionLabel = (action: string): string => actionLabels[action] ?? action
-
-export const journalActorTypeLabel = (actorType: API.JournalActorType): string => {
-  switch (actorType) {
-    case 'staff':
-      return '员工'
-    case 'customer':
-      return '客户'
-    case 'system':
-      return '系统'
-    case 'integration':
-      return '外部集成'
-  }
-}
-
-const fieldLabels: Record<string, string> = {
-  status: '状态',
-  room_id: '场地 ID',
-  approver_id: '审批人 ID',
-  arrival: '到店信息',
-  worker: '处理人',
-  rejection: '拒绝原因',
-  referral: '转诊原因',
-  value: '配置值',
-  value_type: '值类型',
-  display_name: '显示名称',
-  unit: '单位',
-  hint: '说明',
-  is_required: '是否必填',
-  role_level: '权限级别',
-  writeonly: '仅写入',
-  group_id: '分组 ID',
-  sort_order: '排序'
-}
-
-export const journalFieldLabel = (field: string): string => fieldLabels[field] ?? field
-
-const otherDetailLabels: Record<string, string> = {
-  name: '名称',
-  reminder_id: '提醒 ID',
-  channel: '渠道',
-  attempt: '尝试次数',
-  reason: '原因',
-  kind: '类型',
-  recipient: '接收方',
-  service_date_id: '服务日期 ID',
-  next_attempt_at: '下次尝试',
-  reverted_event_id: '被撤销事件 ID',
-  reverted_action: '被撤销操作',
-  reverted_operation: '被撤销操作组'
-}
-
-export const journalOtherDetailLabel = (field: string): string => {
-  return otherDetailLabels[field] ?? journalFieldLabel(field)
-}
-
 export const journalChangeRows = (details: Record<string, unknown>): JournalChangeRow[] => {
   const changes = details.changes
   if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return []
   return Object.entries(changes as Record<string, unknown>).map(([field, raw]) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      return { field, label: journalFieldLabel(field), before: raw, redacted: false }
+      return { field, label: field, before: raw, redacted: false }
     }
     const value = raw as Record<string, unknown>
     return {
       field,
-      label: journalFieldLabel(field),
+      label: field,
       before: value.before,
       after: value.after,
       redacted: value.redacted === true

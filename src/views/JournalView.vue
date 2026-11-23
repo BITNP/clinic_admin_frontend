@@ -184,9 +184,7 @@ import { journal } from '@/store'
 import Auth from '@/utils/Auth'
 import {
   emptyJournalFilters,
-  journalActionLabel,
   journalActorTypes,
-  journalActorTypeLabel,
   journalDateRange,
   journalFiltersFromRouteQuery,
   journalFiltersToRouteQuery,
@@ -226,7 +224,7 @@ const errorMessage = computed({
 
 const actorOptions = journalActorTypes.map((value) => ({
   value,
-  label: journalActorTypeLabel(value)
+  label: value
 }))
 
 const entityOptions = computed(() => [
@@ -249,7 +247,7 @@ const actionOptions = computed(() => {
   if (draft.action && !values.includes(draft.action)) values.push(draft.action)
   return values.map((value) => ({
     value,
-    label: journalActionLabel(value)
+    label: value
   }))
 })
 

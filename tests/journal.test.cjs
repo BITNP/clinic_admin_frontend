@@ -133,7 +133,6 @@ test('journal entity kind normalization validates and deduplicates options', () 
     () => journal.normalizeJournalEntityKinds({ items: [{ entity_type: 'record', actions: [1] }] }),
     /action is invalid/
   )
-  assert.equal(journal.journalOtherDetailLabel('record_id'), 'record_id')
 })
 
 test('journal date ranges include the whole local end day', () => {
@@ -169,10 +168,10 @@ test('journal change rows expose before, after, redaction, and other details', (
   }
 
   assert.deepEqual(JSON.parse(JSON.stringify(journal.journalChangeRows(details))), [
-    { field: 'value', label: '配置值', redacted: true },
+    { field: 'value', label: 'value', redacted: true },
     {
       field: 'status',
-      label: '状态',
+      label: 'status',
       before: 'pending',
       after: 'confirmed',
       redacted: false
@@ -181,6 +180,4 @@ test('journal change rows expose before, after, redaction, and other details', (
   assert.deepEqual(JSON.parse(JSON.stringify(journal.journalOtherDetails(details))), [
     ['name', 'MESSAGE_GATEWAY_URL']
   ])
-  assert.equal(journal.journalActionLabel('record.confirmed'), '确认预约')
-  assert.equal(journal.journalActionLabel('future.action'), 'future.action')
 })
