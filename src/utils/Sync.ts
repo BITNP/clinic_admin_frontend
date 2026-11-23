@@ -83,6 +83,8 @@ const isEditing = (): boolean => {
 class SyncBase {
   // Last counters known to this browser.
   counters = ref<Counters>({})
+  // Whether the latest counter poll reached the backend.
+  isConnected = ref(false)
 
   private timer: ReturnType<typeof setTimeout> | null = null
   private configTimer: ReturnType<typeof setTimeout> | null = null
@@ -99,6 +101,7 @@ class SyncBase {
   async start() {
     if (this.running) return
     this.running = true
+    this.isConnected.value = false
 
     if (!this.listening) {
       this.listening = true
@@ -120,6 +123,7 @@ class SyncBase {
 
   stop() {
     this.running = false
+    this.isConnected.value = false
     if (this.configTimer !== null) {
       clearTimeout(this.configTimer)
       this.configTimer = null
@@ -218,7 +222,15 @@ class SyncBase {
   // are stored before refreshing so a change that lands during the refresh is
   // detected on the next tick instead of being dropped.
   private async fetch() {
-    const res = await Api.get<Counters>('/api/admin/sync')
+    let res: { data: Counters }
+    try {
+      res = await Api.get<Counters>('/api/admin/sync')
+    } catch (e) {
+      this.isConnected.value = false
+      throw e
+    }
+    this.isConnected.value = true
+
     const next = res.data
     const prev = this.counters.value
     const hasBaseline = Object.keys(prev).length > 0

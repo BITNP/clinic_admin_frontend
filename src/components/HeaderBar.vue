@@ -23,6 +23,7 @@
       </template>
       <template #right v-if="!props.disabled">
         <n-space :align="'center'" v-if="!lt600px">
+          <SyncStatus />
           <n-popover trigger="hover" v-if="isAdmin">
             <template #trigger>
               <n-button
@@ -160,26 +161,28 @@
           </n-popover>
         </n-space>
 
-        <n-dropdown
-          v-else
-          trigger="click"
-          :options="menu"
-          show-arrow
-          @select="handleMenuClick"
-          size="large"
-        >
-          <n-button
-            circle
-            quaternary
-            style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+        <n-space :align="'center'" :size="12" v-else>
+          <SyncStatus />
+          <n-dropdown
+            trigger="click"
+            :options="menu"
+            show-arrow
+            @select="handleMenuClick"
+            size="large"
           >
-            <template #icon>
-              <n-icon>
-                <MoreVertFilled />
-              </n-icon>
-            </template>
-          </n-button>
-        </n-dropdown>
+            <n-button
+              circle
+              quaternary
+              style="--n-width: 48px; --n-height: 48px; --n-icon-size: 24px"
+            >
+              <template #icon>
+                <n-icon>
+                  <MoreVertFilled />
+                </n-icon>
+              </template>
+            </n-button>
+          </n-dropdown>
+        </n-space>
       </template>
     </FlexAside>
   </n-element>
@@ -230,6 +233,7 @@ import { ui } from '@/store'
 import Auth from '@/utils/Auth'
 import Sync from '@/utils/Sync'
 import FlexAside from '@/components/FlexAside.vue'
+import SyncStatus from '@/components/SyncStatus.vue'
 import { useRouter } from 'vue-router'
 import EditCalendarFilled from '@vicons/material/EditCalendarFilled'
 import EditNotificationsFilled from '@vicons/material/EditNotificationsFilled'
@@ -334,6 +338,7 @@ const props = defineProps({
 })
 
 const logout = () => {
+  Sync.stop()
   Auth.logout()
   router.push('/login')
 }

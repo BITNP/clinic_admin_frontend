@@ -83,5 +83,6 @@ declare module 'vue' {
     SideBar: typeof import('./src/components/SideBar.vue')['default']
     SideBarContent: typeof import('./src/components/SideBarContent.vue')['default']
     StatusBadge: typeof import('./src/components/StatusBadge.vue')['default']
+    SyncStatus: typeof import('./src/components/SyncStatus.vue')['default']
   }
 }
