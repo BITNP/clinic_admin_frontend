@@ -1,14 +1,26 @@
 <template>
   <PageWrapper title="服务时间管理">
-    <div v-if="Object.keys(groups).length > 0">
-      <div v-for="date in sortedDateKeys" :key="date" class="date-section">
-        <div class="date-header">
-          {{ date }}<span class="weekday">{{ formatWeekday(date) }}</span>
-        </div>
+    <n-space v-if="Object.keys(groups).length > 0" vertical :size="16">
+      <n-card
+        v-for="date in sortedDateKeys"
+        :key="date"
+        size="small"
+        embedded
+        :bordered="false"
+      >
+        <template #header>
+          <div class="date-header">
+            <span>{{ date }}</span>
+            <n-text depth="3" class="weekday">{{ formatWeekday(date) }}</n-text>
+          </div>
+        </template>
         <div class="schedule-list">
           <div v-for="item in groups[date]" :key="item.id" class="schedule-row">
             <span class="room-name">{{ roomName(item.room_id) }}</span>
-            <span class="service-info">{{ item.title }}<span class="time">{{ formatTime(item.startTime) }} - {{ formatTime(item.endTime) }}</span></span>
+            <span class="service-info">
+              {{ item.title }}
+              <n-text depth="3" class="time">{{ formatTime(item.startTime) }} - {{ formatTime(item.endTime) }}</n-text>
+            </span>
             <span class="count">{{ item.count }}/{{ item.capacity }}</span>
             <span class="actions">
               <n-button size="small" @click="handleEdit(item)">编辑服务</n-button>
@@ -16,8 +28,8 @@
             </span>
           </div>
         </div>
-      </div>
-    </div>
+      </n-card>
+    </n-space>
     <n-empty v-else />
   </PageWrapper>
   <n-float-button :right="16" :bottom="96" :width="144" :height="56" type="primary"
@@ -131,66 +143,52 @@ const handleDelete = (item: API.ServiceDate) => {
 </script>
 
 <style scoped>
-.date-section {
-  margin-bottom: 24px;
-}
 .date-header {
-  font-size: 1.1rem;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1.05rem;
   font-weight: 600;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 8px;
 }
 .weekday {
   font-weight: 400;
-  color: #888;
-  margin-left: 6px;
+  font-size: 0.95rem;
+}
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .schedule-row {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) auto auto;
   align-items: center;
-  padding: 10px 16px;
-  gap: 8px 12px;
-}
-.schedule-row::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 16px;
-  right: 16px;
-  height: 1px;
-  background: #e0e0e0;
-}
-.schedule-row:last-child::after {
-  display: none;
+  padding: 8px 12px;
+  gap: 8px 16px;
+  border-radius: 4px;
+  background-color: var(--n-color, rgba(255, 255, 255, 0.04));
 }
 .room-name {
-  flex: 0 1 auto;
-  min-width: 90px;
   font-weight: 500;
 }
 .service-info {
-  flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 .time {
-  color: #888;
   font-size: 0.9em;
   margin-left: 8px;
+  font-variant-numeric: tabular-nums;
 }
 .count {
-  flex: 0 0 auto;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .actions {
-  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-left: auto;
+  justify-content: flex-end;
 }
 .float-action-inner {
   display: flex;
@@ -204,8 +202,15 @@ const handleDelete = (item: API.ServiceDate) => {
   font-size: 0.8rem;
 }
 @media screen and (max-width: 600px) {
+  .schedule-row {
+    grid-template-columns: 1fr auto;
+  }
   .room-name {
-    flex-basis: 100%;
+    grid-column: 1 / -1;
+  }
+  .actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
   .float-action-inner span {
     font-size: 0.75rem;
