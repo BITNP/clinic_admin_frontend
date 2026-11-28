@@ -2,10 +2,19 @@ namespace API {
   type DateString = string
   type TimeString = string
 
+  type NoShowBanLevel = 'campus' | 'global'
+
+  type NoShowBanPolicy = {
+    enabled: boolean
+    duration_hours: number
+    level: NoShowBanLevel
+  }
+
   // /api/admin/campuses
   type Campus = {
     id: number
     name: string
+    no_show_ban_policy?: NoShowBanPolicy
   }
 
   type RoomType = 'normal' | 'dynamic'

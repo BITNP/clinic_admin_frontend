@@ -69,7 +69,9 @@ const createCampus = async (payload: Pick<API.Campus, 'name'>) => {
   await load()
 }
 
-const updateCampus = async (id: number, payload: Partial<Pick<API.Campus, 'name'>>) => {
+type CampusUpdatePayload = Partial<Pick<API.Campus, 'name' | 'no_show_ban_policy'>>
+
+const updateCampus = async (id: number, payload: CampusUpdatePayload) => {
   await Api.put<API.Campus>(`/api/admin/campuses/${id}`, payload)
   await load()
 }

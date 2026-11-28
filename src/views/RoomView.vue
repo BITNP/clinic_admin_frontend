@@ -78,11 +78,35 @@
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showCampusEditModal" title="编辑校区" preset="card" style="max-width: 480px;"
+    <n-modal v-model:show="showCampusEditModal" title="编辑校区" preset="card" style="max-width: 560px;"
       @after-leave="resetCampusEditForm">
-      <n-form :model="campusEditForm" ref="campusEditFormRef" :rules="campusRules">
+      <n-form :model="campusEditForm" ref="campusEditFormRef" :rules="campusEditRules">
         <n-form-item label="名称" path="name">
           <n-input v-model:value="campusEditForm.name" placeholder="例如: 中关村校区" :maxlength="64" show-count />
+        </n-form-item>
+        <n-divider title-placement="left">未到访封禁策略</n-divider>
+        <n-form-item label="启用策略">
+          <n-space vertical :size="4">
+            <n-switch v-model:value="campusEditForm.no_show_ban_policy.enabled" />
+            <n-text depth="3">工单被标记为未到访时，自动暂停该用户的预约资格。</n-text>
+          </n-space>
+        </n-form-item>
+        <n-form-item label="封禁时长（小时）" path="no_show_ban_policy.duration_hours">
+          <n-input-number
+            v-model:value="campusEditForm.no_show_ban_policy.duration_hours"
+            :min="1"
+            :max="MAX_NO_SHOW_BAN_HOURS"
+            :precision="0"
+            :disabled="!campusEditForm.no_show_ban_policy.enabled"
+            style="width: 100%"
+          />
+        </n-form-item>
+        <n-form-item label="封禁范围" path="no_show_ban_policy.level">
+          <n-select
+            v-model:value="campusEditForm.no_show_ban_policy.level"
+            :disabled="!campusEditForm.no_show_ban_policy.enabled"
+            :options="noShowBanLevelOptions"
+          />
         </n-form-item>
       </n-form>
       <template #footer>
@@ -124,6 +148,7 @@ import DeleteFilled from '@vicons/material/DeleteFilled'
 import { useRouter } from 'vue-router'
 
 type RoomRow = API.Room
+const MAX_NO_SHOW_BAN_HOURS = 2562047
 
 const message = useMessage()
 const dialog = useDialog()
@@ -154,6 +179,11 @@ const campusEditLoading = ref(false)
 const editingCampusId = ref<number | null>(null)
 const campusEditForm = reactive({
   name: '',
+  no_show_ban_policy: {
+    enabled: false,
+    duration_hours: 48 as number | null,
+    level: 'campus' as API.NoShowBanLevel,
+  },
 })
 const campusEditFormRef = ref<FormInst | null>(null)
 
@@ -197,6 +227,37 @@ const campusRules: FormRules = {
     },
   ],
 }
+
+const campusEditRules: FormRules = {
+  ...campusRules,
+  'no_show_ban_policy.duration_hours': [
+    {
+      required: true,
+      type: 'number',
+      message: '请输入封禁时长',
+      trigger: ['blur', 'change'],
+    },
+    {
+      validator: (_rule, value: number | null) =>
+        Number.isInteger(value) &&
+        (value ?? 0) >= 1 &&
+        (value ?? 0) <= MAX_NO_SHOW_BAN_HOURS
+          ? true
+          : new Error(`封禁时长必须是 1 至 ${MAX_NO_SHOW_BAN_HOURS} 之间的整数`),
+      trigger: ['blur', 'change'],
+    },
+  ],
+  'no_show_ban_policy.level': {
+    required: true,
+    message: '请选择封禁范围',
+    trigger: ['change'],
+  },
+}
+
+const noShowBanLevelOptions = [
+  { label: '仅当前校区', value: 'campus' },
+  { label: '所有校区', value: 'global' },
+]
 
 const errorText = (e: any, fallback: string) => {
   if (e?.response?.status === 409) return '场地名称已存在'
@@ -438,13 +499,25 @@ const handleToggleEnabled = async (room: API.Room, value: boolean) => {
 const openCampusEdit = (campus: API.Campus) => {
   editingCampusId.value = campus.id
   campusEditForm.name = campus.name
+  campusEditForm.no_show_ban_policy = {
+    enabled: campus.no_show_ban_policy?.enabled ?? false,
+    duration_hours: campus.no_show_ban_policy?.duration_hours ?? 48,
+    level: campus.no_show_ban_policy?.level ?? 'campus',
+  }
   campusEditFormRef.value?.restoreValidation()
   showCampusEditModal.value = true
 }
 
 const resetCampusEditForm = () => {
   editingCampusId.value = null
-  Object.assign(campusEditForm, { name: '' })
+  Object.assign(campusEditForm, {
+    name: '',
+    no_show_ban_policy: {
+      enabled: false,
+      duration_hours: 48,
+      level: 'campus' as API.NoShowBanLevel,
+    },
+  })
   campusEditFormRef.value?.restoreValidation()
 }
 
@@ -459,6 +532,11 @@ const handleCampusEditSubmit = async () => {
   try {
     await rooms.updateCampus(editingCampusId.value, {
       name: campusEditForm.name,
+      no_show_ban_policy: {
+        enabled: campusEditForm.no_show_ban_policy.enabled,
+        duration_hours: campusEditForm.no_show_ban_policy.duration_hours ?? 48,
+        level: campusEditForm.no_show_ban_policy.level,
+      },
     })
     message.success('校区已更新')
     showCampusEditModal.value = false
