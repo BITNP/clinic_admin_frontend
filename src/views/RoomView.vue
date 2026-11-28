@@ -84,12 +84,8 @@
         <n-form-item label="名称" path="name">
           <n-input v-model:value="campusEditForm.name" placeholder="例如: 中关村校区" :maxlength="64" show-count />
         </n-form-item>
-        <n-divider title-placement="left">未到访封禁策略</n-divider>
-        <n-form-item label="启用策略">
-          <n-space vertical :size="4">
-            <n-switch v-model:value="campusEditForm.no_show_ban_policy.enabled" />
-            <n-text depth="3">工单被标记为未到访时，自动暂停该用户的预约资格。</n-text>
-          </n-space>
+        <n-form-item label="启用未到访封禁策略">
+          <n-switch v-model:value="campusEditForm.no_show_ban_policy.enabled" />
         </n-form-item>
         <n-form-item label="封禁时长（小时）" path="no_show_ban_policy.duration_hours">
           <n-input-number
@@ -97,16 +93,16 @@
             :min="1"
             :max="MAX_NO_SHOW_BAN_HOURS"
             :precision="0"
-            :disabled="!campusEditForm.no_show_ban_policy.enabled"
             style="width: 100%"
           />
         </n-form-item>
         <n-form-item label="封禁范围" path="no_show_ban_policy.level">
-          <n-select
-            v-model:value="campusEditForm.no_show_ban_policy.level"
-            :disabled="!campusEditForm.no_show_ban_policy.enabled"
-            :options="noShowBanLevelOptions"
-          />
+          <n-radio-group v-model:value="campusEditForm.no_show_ban_policy.level">
+            <n-space>
+              <n-radio value="campus">仅当前校区</n-radio>
+              <n-radio value="global">所有校区</n-radio>
+            </n-space>
+          </n-radio-group>
         </n-form-item>
       </n-form>
       <template #footer>
@@ -253,11 +249,6 @@ const campusEditRules: FormRules = {
     trigger: ['change'],
   },
 }
-
-const noShowBanLevelOptions = [
-  { label: '仅当前校区', value: 'campus' },
-  { label: '所有校区', value: 'global' },
-]
 
 const errorText = (e: any, fallback: string) => {
   if (e?.response?.status === 409) return '场地名称已存在'
